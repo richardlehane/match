@@ -6,5 +6,3 @@ Example usage:
 	for result := range rk.Index(bytes.NewBuffer([]byte("abracadabra"))) {
 	  fmt.Println(result.Index, "-", result.Offset)
 	}
-
-Install with `go get github.com/richardlehane/rkac`

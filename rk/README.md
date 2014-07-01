@@ -8,5 +8,3 @@ Example usage:
 	}
 
 Note: this algorithm demands a dictionary of fixed length strings. If you want variable lengths, use Aho-Corasick instead.
-
-Install with `go get github.com/richardlehane/rk`

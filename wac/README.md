@@ -12,5 +12,3 @@ Example usage:
     for result := range w.Index(bytes.NewBuffer([]byte("abracadabra"))) {
 	  fmt.Println(result.Index, "-", result.Offset)
     }
-
-Install with `go get github.com/richardlehane/wac`

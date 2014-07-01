@@ -8,5 +8,3 @@ Example usage:
 	}
 
 This implementation is tuned for fast matching speed. Building the Aho-Corasick tree is relatively slow and memory intensive and it only returns the index (within the byte slices that made the tree) and offset of matches. For a more fully featured and balanced implementation, use [http://godoc.org/code.google.com/p/ahocorasick](http://godoc.org/code.google.com/p/ahocorasick).
-
-Install with `go get github.com/richardlehane/ac`
