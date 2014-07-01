@@ -1,0 +1,1 @@
+Various string matching algorithms implemented in Go.
