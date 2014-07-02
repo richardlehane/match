@@ -14,30 +14,36 @@
 
 // Package wac is a modified Aho-Corasick multiple string search algorithm.
 //
-// This algorithm allows for sequences that are composed of subsequences. The head subsequence can be annotated with a maximum offset. A wild max offset can be given with -1.
-// Any tail subsequences (which aren't annotated with offsets) will only match if preceding subsequence matches have succeeded.
-// The results returned are for the matches on sub-sequences (NOT the full sequences). The index of those subsequences and the offset is returned.
-// It is up to clients to verify that the complete sequence that they are interested in has matched correctly.
+// This algorithm allows for sequences that are composed of sub-sequences
+// that can contain an arbitrary number of wildcards. Sequences can also be
+// given a maximum offset that defines the maximum byte position of the first sub-sequence.
 //
-// Example:
-//  w := wac.New([]wac.Seq{wac.NewSeq(0, []byte{'a','b'}, []byte{'a','d'}, []byte{'r', 'a'})})
-//	for result := range w.Index(bytes.NewBuffer([]byte("abracadabra"))) {
-//	  fmt.Println(result.Index, "-", result.Offset)
-//	}
+// The results returned are for the matches on subsequences (NOT the full sequences).
+// The index of those subsequences and the offset is returned.
+// It is up to clients to verify that the complete sequence that they are interested in has matched.
+
+// Example usage:
+//
+//     w := wac.New()
+//     seq := wac.NewSeq(1, []byte{'b'}, []byte{'a','d'}}, []byte{'r', 'a'})
+//     w.Add(seq)
+//     for result := range w.Index(bytes.NewBuffer([]byte("abracadabra"))) {
+// 	   fmt.Println(result.Index, "-", result.Offset)
+//     }
 
 package wac
 
-// Todo... : a save-able/load-able design; use less memory by only storing relevant trans nodes in a sorted slice.
-
-// New plan: single AC. But with a modified output function that checks for preconditions before sending. Preconditions are min/max offset for head; and entanglements for tail. Store entanglements in a bool slice. With a reset slice that just contains indexes of entanglements.
-
+// Todo... :
+// a save-able/load-able design; use less memory by only storing relevant trans nodes in a sorted slice.
+// New plan: single AC. But with a modified output function that checks for preconditions before sending.
+// Preconditions are max offset for head; and entanglements for tail. Store entanglements in a bool slice. With a reset slice that just contains indexes of entanglements.
 // Trans function takes offset, preceding-matches, and the byte. When building the WAC if we have multiple choices from the same byte, we go with the simplest
-
 // Output function takes preceding matches and the results channel.
 
 import "io"
 
 type Wac struct {
+	Preconditions []bool
 }
 
 type Seq struct {
@@ -66,7 +72,9 @@ type Trans struct {
 
 type Transition func(byte) (*Node, bool)
 
-type Out [][3]int // node indexes (sequence and subsequence) and len
+
+
+type Out []struct{[4]int // precondition index, node indexes (sequence and subsequence), and len}
 
 func (t *trans) put(b byte, ac *Ac) {
 	t.keys = append(t.keys, b)
