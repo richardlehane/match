@@ -35,61 +35,20 @@ package wac
 
 import "io"
 
-// A Head node is a byte sequence with a maximum offset; for a wildcard offset, use -1
-type Head struct {
-	Max int
-	Val []byte
-}
+type Choice [][]byte
 
-// A Sequence is a head node, which is a byte sequence with a maximum offset, and an ordered set of tail byte sequences
+// A Sequence is an ordered set of slices of byte slices (choices), with a maximum offset for the first set of choices
 type Seq struct {
-	Head Head
-	Tail [][]byte
+	Max     int
+	Choices []Choice
 }
 
-func (s Seq) length(z bool) int {
-	if s.Head.Val == nil {
-		return 0
-	}
-	if !z && s.Head.Max == 0 {
-		return len(s.Tail)
-	}
-	return len(s.Tail) + 1
-}
-
-// iterator for sequence: returns subsequence index, max, byte val
-func (s Seq) idx(i int, z bool) (int, int, []byte) {
-	l := s.length(z)
-	if i >= l || i < 0 {
-		return 0, 0, nil
-	}
-	if !z && s.Head.Max == 0 {
-		return i + 1, -1, s.Tail[i]
-	}
-	if i == 0 {
-		return i, s.Head.Max, s.Head.Val
-	}
-	return i, -1, s.Tail[i-1]
-}
-
-// NewSeq is a convenience function for making a Sequence.
-// Expects a max offset for the first sequence and variable list of byte sequences. For a wildcard offset, use -1 as the first argument.
-func NewSeq(max int, byts ...[]byte) Seq {
-	switch len(byts) {
-	case 0:
-		return Seq{Head{max, nil}, nil}
-	case 1:
-		return Seq{Head{max, byts[0]}, nil}
-	}
-	return Seq{Head{max, byts[0]}, byts[1:]}
-}
-
-// New creates an Wild Aho-Corasick tree from a slice of byte slices
+// New creates an Wild Aho-Corasick tree
 func New(seqs []Seq) *Wac {
 	wac := new(Wac)
 	wac.preconditions = make([][]bool, len(seqs))
 	for i, s := range seqs {
-		wac.preconditions[i] = make([]bool, s.length(false))
+		wac.preconditions[i] = make([]bool, len(s.Choices))
 	}
 	zero := newNode()
 	zero.addGotos(seqs, true)
@@ -104,6 +63,7 @@ type Wac struct {
 	zero          *node
 	root          *node
 	preconditions [][]bool
+	subsequentRun bool
 }
 
 type node struct {
@@ -156,20 +116,29 @@ func (outs outs) contains(out out) bool {
 func (start *node) addGotos(seqs []Seq, zero bool) {
 	// iterate through byte sequences adding goto links to the link matrix
 	for id, seq := range seqs {
-		for i, l := 0, seq.length(zero); i < l; i++ {
-			curr := start
-			sub, m, byts := seq.idx(i, zero)
-			for _, byt := range byts {
-				if t, ok := curr.transit.get(byt); ok {
-					curr = t
-				} else {
-					node := newNode()
-					node.val = byt
-					curr.transit.put(byt, node)
-					curr = node
-				}
+		for i, v := range seq.Choices {
+			// skip the first choice set if this isn't the zero tree and it is at 0 offset
+			if !zero && i == 0 && seq.Max == 0 {
+				continue
 			}
-			curr.output = append(curr.output, out{m, id, sub, len(byts)})
+			for _, byts := range v {
+				curr := start
+				for _, byt := range byts {
+					if t, ok := curr.transit.get(byt); ok {
+						curr = t
+					} else {
+						node := newNode()
+						node.val = byt
+						curr.transit.put(byt, node)
+						curr = node
+					}
+				}
+				max := seq.Max
+				if i > 0 {
+					max = -1
+				}
+				curr.output = append(curr.output, out{max, id, i, len(byts)})
+			}
 		}
 	}
 }
@@ -231,21 +200,22 @@ func (start *node) addFails(zero bool) *node {
 // and offsets (in the input byte slice) of matching sequences.
 // Has a quit channel that should be closed to signal quit.
 func (wac *Wac) Index(input io.ByteReader, quit chan struct{}) chan Result {
-	output := make(chan Result, 20)
+	output, filtered := make(chan Result, 20), make(chan Result, 20)
 	go wac.match(input, output, quit)
-	return output
+	go wac.filter(output, filtered)
+	return filtered
 }
 
 // Result contains the index (in the list of sequences that made the tree) and offset of matches.
 type Result struct {
 	Index  [2]int
 	Offset int
+	Length int
 }
 
 func (wac *Wac) match(input io.ByteReader, results chan Result, quit chan struct{}) {
 	var offset int
 	curr := wac.zero
-
 	for {
 		select {
 		case <-quit:
@@ -270,8 +240,25 @@ func (wac *Wac) match(input io.ByteReader, results chan Result, quit chan struct
 			}
 		}
 		for _, o := range curr.output {
-			results <- Result{Index: [2]int{o.seqIndex, o.subIndex}, Offset: offset - o.length}
+			if o.max == -1 || o.max >= offset-o.length {
+				results <- Result{Index: [2]int{o.seqIndex, o.subIndex}, Offset: offset - o.length, Length: o.length}
+			}
 		}
 	}
 	close(results)
+}
+
+func (wac *Wac) filter(output chan Result, filtered chan Result) {
+	// make a working copy of the preconditions
+	preCopy := make([][]bool, len(wac.preconditions))
+	for i, v := range wac.preconditions {
+		preCopy[i] = make([]bool, len(v))
+	}
+	for res := range output {
+		if res.Index[1] == 0 || preCopy[res.Index[0]][res.Index[1]-1] {
+			preCopy[res.Index[0]][res.Index[1]] = true
+			filtered <- res
+		}
+	}
+	close(filtered)
 }
