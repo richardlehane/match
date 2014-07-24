@@ -25,10 +25,9 @@
 // Example usage:
 //
 //     w := wac.New()
-//     seq := wac.NewSeq(1, []byte{'b'}, []byte{'a','d'}}, []byte{'r', 'a'})
-//     w.Add(seq)
-//     for result := range w.Index(bytes.NewBuffer([]byte("abracadabra"))) {
-// 	   fmt.Println(result.Index, "-", result.Offset)
+//     seq := wac.Seq(1, []wac.Choice{wac.Choice{[]byte{'b'}}, wac.Choice{[]byte{'a','d'}}, wac.Choice{[]byte{'r', 'a'}}})
+//     for result := range w.Index(bytes.NewBuffer([]byte("abracadabra")), make(chan {}struct)) {
+// 	     fmt.Println(result.Index, "-", result.Offset)
 //     }
 
 package wac
