@@ -10,7 +10,7 @@ func equal(a []Result, b []Result) bool {
 		return false
 	}
 	for i, v := range a {
-		if v[0] != b[i] {
+		if v.Index != b[i].Index {
 			return false
 		}
 	}
@@ -25,9 +25,9 @@ func loop(output chan Result) []Result {
 	return results
 }
 
-func test(t *testing.T, a []byte, b []Seq, expect Result) {
+func test(t *testing.T, a []byte, b []Seq, expect []Result) {
 	wac := New(b)
-	output := wac.Index(bytes.NewBuffer(a))
+	output := wac.Index(bytes.NewBuffer(a), make(chan struct{}))
 	results := loop(output)
 	if !equal(expect, results) {
 		t.Errorf("Index fail; Expecting: %v, Got: %v", expect, results)
@@ -42,97 +42,97 @@ func seq(max int, s string) Seq {
 func TestWikipedia(t *testing.T) {
 	test(t, []byte("abccab"),
 		[]Seq{seq(-1, "a"), seq(-1, "ab"), seq(-1, "bc"), seq(-1, "bca"), seq(-1, "c"), seq(-1, "caa")},
-		Result{Result{[2]int{0, 0}, 0}, Result{[2]int{1, 0}, 0}, Result{[2]int{2, 0}, 1}, Result{[2]int{4, 0}, 2}, Result{[2]int{4, 0}, 3}, Result{[2]int{0, 0}, 4}, Result{[2]int{1, 0}, 4}})
+		[]Result{Result{[2]int{0, 0}, 0}, Result{[2]int{1, 0}, 0}, Result{[2]int{2, 0}, 1}, Result{[2]int{4, 0}, 2}, Result{[2]int{4, 0}, 3}, Result{[2]int{0, 0}, 4}, Result{[2]int{1, 0}, 4}})
 }
 
 func TestSimple(t *testing.T) {
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq(-1, "poto")},
-		Result{})
+		[]Result{})
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq(-1, "The")},
-		Result{Result{[2]int{0, 0}, 0}})
+		[]Result{Result{[2]int{0, 0}, 0}})
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq(-1, "pot")},
-		Result{Result{[2]int{0, 0}, 4}})
+		[]Result{Result{[2]int{0, 0}, 4}})
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq(-1, "pot ")},
-		Result{Result{[2]int{0, 0}, 4}})
+		[]Result{Result{[2]int{0, 0}, 4}})
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq(-1, "ot h")},
-		Result{Result{[2]int{0, 0}, 5}})
+		[]Result{Result{[2]int{0, 0}, 5}})
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq(-1, "andle")},
-		Result{Result{[2]int{0, 0}, 15}})
+		[]Result{Result{[2]int{0, 0}, 15}})
 }
 
 func TestMultipleNonoverlapping(t *testing.T) {
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq(-1, "h")},
-		Result{Result{[2]int{0, 0}, 1}, Result{[2]int{0, 0}, 8}, Result{[2]int{0, 0}, 14}})
+		[]Result{Result{[2]int{0, 0}, 1}, Result{[2]int{0, 0}, 8}, Result{[2]int{0, 0}, 14}})
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq(-1, "ha"), seq(-1, "he")},
-		Result{Result{[2]int{1, 0}, 1}, Result{[2]int{0, 0}, 8}, Result{[2]int{0, 0}, 14}})
+		[]Result{Result{[2]int{1, 0}, 1}, Result{[2]int{0, 0}, 8}, Result{[2]int{0, 0}, 14}})
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq(-1, "pot"), seq(-1, "had")},
-		Result{Result{[2]int{0, 0}, 4}, Result{[2]int{1, 0}, 8}})
+		[]Result{Result{[2]int{0, 0}, 4}, Result{[2]int{1, 0}, 8}})
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq(-1, "pot"), seq(-1, "had"), seq(-1, "hod")},
-		Result{Result{[2]int{0, 0}, 4}, Result{[2]int{1, 0}, 8}})
+		[]Result{Result{[2]int{0, 0}, 4}, Result{[2]int{1, 0}, 8}})
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq(-1, "The"), seq(-1, "pot"), seq(-1, "had"), seq(-1, "hod"), seq(-1, "andle")},
-		Result{Result{[2]int{0, 0}, 0}, Result{[2]int{1, 0}, 4}, Result{[2]int{2, 0}, 8}, Result{[2]int{4, 0}, 15}})
+		[]Result{Result{[2]int{0, 0}, 0}, Result{[2]int{1, 0}, 4}, Result{[2]int{2, 0}, 8}, Result{[2]int{4, 0}, 15}})
 }
 
 func TestOverlapping(t *testing.T) {
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq(-1, "Th"), seq(-1, "he pot"), seq(-1, "The"), seq(-1, "pot h")},
-		Result{Result{[2]int{0, 0}, 0}, Result{[2]int{2, 0}, 0}, Result{[2]int{1, 0}, 1}, Result{[2]int{3, 0}, 4}})
+		[]Result{Result{[2]int{0, 0}, 0}, Result{[2]int{2, 0}, 0}, Result{[2]int{1, 0}, 1}, Result{[2]int{3, 0}, 4}})
 }
 
 func TestNesting(t *testing.T) {
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq(-1, "handle"), seq(-1, "hand"), seq(-1, "and"), seq(-1, "andle")},
-		Result{Result{[2]int{1, 0}, 14}, Result{[2]int{2, 0}, 15}, Result{[2]int{0, 0}, 14}, Result{[2]int{3, 0}, 15}})
+		[]Result{Result{[2]int{1, 0}, 14}, Result{[2]int{2, 0}, 15}, Result{[2]int{0, 0}, 14}, Result{[2]int{3, 0}, 15}})
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq(-1, "handle"), seq(-1, "hand"), seq(-1, "an"), seq(-1, "n")},
-		Result{Result{[2]int{2, 0}, 15}, Result{[2]int{3, 0}, 16}, Result{[2]int{1, 0}, 14}, Result{[2]int{0, 0}, 14}})
+		[]Result{Result{[2]int{2, 0}, 15}, Result{[2]int{3, 0}, 16}, Result{[2]int{1, 0}, 14}, Result{[2]int{0, 0}, 14}})
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq(-1, "dle"), seq(-1, "l"), seq(-1, "le")},
-		Result{Result{[2]int{1, 0}, 18}, Result{[2]int{0, 0}, 17}, Result{[2]int{2, 0}, 18}})
+		[]Result{Result{[2]int{1, 0}, 18}, Result{[2]int{0, 0}, 17}, Result{[2]int{2, 0}, 18}})
 }
 
 func TestRandom(t *testing.T) {
 	test(t, []byte("yasherhs"),
 		[]Seq{seq(-1, "say"), seq(-1, "she"), seq(-1, "shr"), seq(-1, "he"), seq(-1, "her")},
-		Result{Result{[2]int{1, 0}, 2}, Result{[2]int{3, 0}, 3}, Result{[2]int{4, 0}, 3}})
+		[]Result{Result{[2]int{1, 0}, 2}, Result{[2]int{3, 0}, 3}, Result{[2]int{4, 0}, 3}})
 }
 
 func TestFailPartial(t *testing.T) {
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq(-1, "dlf"), seq(-1, "l")},
-		Result{Result{[2]int{1, 0}, 18}})
+		[]Result{Result{[2]int{1, 0}, 18}})
 }
 
 func TestMany(t *testing.T) {
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq(-1, "handle"), seq(-1, "andle"), seq(-1, "ndle"), seq(-1, "dle"), seq(-1, "le"), seq(-1, "e")},
-		Result{Result{[2]int{5, 0}, 2}, Result{[2]int{0, 0}, 14}, Result{[2]int{1, 0}, 15}, Result{[2]int{2, 0}, 16}, Result{[2]int{3, 0}, 17}, Result{[2]int{4, 0}, 18}, Result{[2]int{5, 0}, 19}})
+		[]Result{Result{[2]int{5, 0}, 2}, Result{[2]int{0, 0}, 14}, Result{[2]int{1, 0}, 15}, Result{[2]int{2, 0}, 16}, Result{[2]int{3, 0}, 17}, Result{[2]int{4, 0}, 18}, Result{[2]int{5, 0}, 19}})
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq(-1, "handle"), seq(-1, "handl"), seq(-1, "hand"), seq(-1, "han"), seq(-1, "ha"), seq(-1, "a")},
-		Result{Result{[2]int{4, 0}, 8}, Result{[2]int{5, 0}, 9}, Result{[2]int{5, 0}, 12}, Result{[2]int{4, 0}, 14}, Result{[2]int{5, 0}, 15}, Result{[2]int{3, 0}, 14}, Result{[2]int{2, 0}, 14}, Result{[2]int{1, 0}, 14}, Result{[2]int{0, 0}, 14}})
+		[]Result{Result{[2]int{4, 0}, 8}, Result{[2]int{5, 0}, 9}, Result{[2]int{5, 0}, 12}, Result{[2]int{4, 0}, 14}, Result{[2]int{5, 0}, 15}, Result{[2]int{3, 0}, 14}, Result{[2]int{2, 0}, 14}, Result{[2]int{1, 0}, 14}, Result{[2]int{0, 0}, 14}})
 }
 
 func TestLong(t *testing.T) {
 	test(t, []byte("macintosh"),
 		[]Seq{seq(-1, "acintosh"), seq(-1, "in")},
-		Result{Result{[2]int{1, 0}, 3}, Result{[2]int{0, 0}, 1}})
+		[]Result{Result{[2]int{1, 0}, 3}, Result{[2]int{0, 0}, 1}})
 	test(t, []byte("macintosh"),
 		[]Seq{seq(-1, "acintosh"), seq(-1, "in"), seq(-1, "tosh")},
-		Result{Result{[2]int{1, 0}, 3}, Result{[2]int{0, 0}, 1}, Result{[2]int{2, 0}, 5}})
+		[]Result{Result{[2]int{1, 0}, 3}, Result{[2]int{0, 0}, 1}, Result{[2]int{2, 0}, 5}})
 	test(t, []byte("macintosh"),
 		[]Seq{seq(-1, "acintosh"), seq(-1, "into"), seq(-1, "to"), seq(-1, "in")},
-		Result{Result{[2]int{3, 0}, 3}, Result{[2]int{1, 0}, 3}, Result{[2]int{2, 0}, 5}, Result{[2]int{0, 0}, 1}})
+		[]Result{Result{[2]int{3, 0}, 3}, Result{[2]int{1, 0}, 3}, Result{[2]int{2, 0}, 5}, Result{[2]int{0, 0}, 1}})
 }
 
 // Benchmarks
@@ -148,7 +148,7 @@ func BenchmarkIndex(b *testing.B) {
 	input := bytes.NewBuffer([]byte("The pot had a handle"))
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		for _ = range ac.Index(input) {
+		for _ = range ac.Index(input, make(chan struct{})) {
 		}
 	}
 }
@@ -188,7 +188,7 @@ func BenchmarkMatchingNoMatch(b *testing.B) {
 		seq(-1, "abababb"),
 		seq(-1, "abababababq")})
 	b.StartTimer()
-	for _ = range ac.Index(reader) {
+	for _ = range ac.Index(reader, make(chan struct{})) {
 	}
 }
 
@@ -200,7 +200,7 @@ func BenchmarkMatchingManyMatches(b *testing.B) {
 		seq(-1, "ababab"),
 		seq(-1, "ababababab")})
 	b.StartTimer()
-	for _ = range ac.Index(reader) {
+	for _ = range ac.Index(reader, make(chan struct{})) {
 	}
 }
 
@@ -209,6 +209,6 @@ func BenchmarkMatchingHardTree(b *testing.B) {
 	reader := bytes.NewBuffer(benchmarkValue(b.N))
 	ac := New(hardTree())
 	b.StartTimer()
-	for _ = range ac.Index(reader) {
+	for _ = range ac.Index(reader, make(chan struct{})) {
 	}
 }
