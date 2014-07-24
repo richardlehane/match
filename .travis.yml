@@ -7,7 +7,9 @@ install:
   - go install github.com/richardlehane/match/ac
   - go install github.com/richardlehane/match/rk
   - go install github.com/richardlehane/match/rkac
+  - go install github.com/richardlehane/match/wac
 script:
   - go test github.com/richardlehane/match/ac
   - go test github.com/richardlehane/match/rk
   - go test github.com/richardlehane/match/rkac
+  - go test github.com/richardlehane/match/wac
