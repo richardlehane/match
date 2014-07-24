@@ -1,4 +1,4 @@
-Aho-Corasick multiple string matching algorithm with wildcards. 
+Aho-Corasick multiple string matching algorithm with wildcards, choices and a leading offset. 
 
 This algorithm allows for sequences that are composed of subsequences that can contain an arbitrary number of wildcards. Sequences can also be given a maximum offset that defines the maximum byte position of the first sub-sequence.
 
