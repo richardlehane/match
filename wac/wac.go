@@ -45,10 +45,6 @@ type Seq struct {
 // New creates an Wild Aho-Corasick tree
 func New(seqs []Seq) *Wac {
 	wac := new(Wac)
-	wac.preconditions = make([][]bool, len(seqs))
-	for i, s := range seqs {
-		wac.preconditions[i] = make([]bool, len(s.Choices))
-	}
 	zero := newNode()
 	zero.addGotos(seqs, true)
 	root := zero.addFails(true)
@@ -59,10 +55,8 @@ func New(seqs []Seq) *Wac {
 }
 
 type Wac struct {
-	zero          *node
-	root          *node
-	preconditions [][]bool
-	subsequentRun bool
+	zero *node
+	root *node
 }
 
 type node struct {
@@ -199,10 +193,9 @@ func (start *node) addFails(zero bool) *node {
 // and offsets (in the input byte slice) of matching sequences.
 // Has a quit channel that should be closed to signal quit.
 func (wac *Wac) Index(input io.ByteReader, quit chan struct{}) chan Result {
-	output, filtered := make(chan Result, 20), make(chan Result, 20)
+	output := make(chan Result, 20)
 	go wac.match(input, output, quit)
-	go wac.filter(output, filtered)
-	return filtered
+	return output
 }
 
 // Result contains the index (in the list of sequences that made the tree) and offset of matches.
@@ -214,6 +207,7 @@ type Result struct {
 
 func (wac *Wac) match(input io.ByteReader, results chan Result, quit chan struct{}) {
 	var offset int
+	precons := make(map[[2]int]bool)
 	curr := wac.zero
 	for {
 		select {
@@ -240,24 +234,12 @@ func (wac *Wac) match(input io.ByteReader, results chan Result, quit chan struct
 		}
 		for _, o := range curr.output {
 			if o.max == -1 || o.max >= offset-o.length {
-				results <- Result{Index: [2]int{o.seqIndex, o.subIndex}, Offset: offset - o.length, Length: o.length}
+				if o.subIndex == 0 || precons[[2]int{o.seqIndex, o.subIndex - 1}] {
+					precons[[2]int{o.seqIndex, o.subIndex}] = true
+					results <- Result{Index: [2]int{o.seqIndex, o.subIndex}, Offset: offset - o.length, Length: o.length}
+				}
 			}
 		}
 	}
 	close(results)
-}
-
-func (wac *Wac) filter(output chan Result, filtered chan Result) {
-	// make a working copy of the preconditions
-	preCopy := make([][]bool, len(wac.preconditions))
-	for i, v := range wac.preconditions {
-		preCopy[i] = make([]bool, len(v))
-	}
-	for res := range output {
-		if res.Index[1] == 0 || preCopy[res.Index[0]][res.Index[1]-1] {
-			preCopy[res.Index[0]][res.Index[1]] = true
-			filtered <- res
-		}
-	}
-	close(filtered)
 }
