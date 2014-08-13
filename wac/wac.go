@@ -32,7 +32,11 @@
 
 package wac
 
-import "io"
+import (
+	"fmt"
+	"io"
+	"strings"
+)
 
 type Choice [][]byte
 
@@ -40,6 +44,23 @@ type Choice [][]byte
 type Seq struct {
 	Max     int
 	Choices []Choice
+}
+
+func (s Seq) String() string {
+	str := fmt.Sprintf("{Max: %d; Choices:", s.Max)
+	for n, v := range s.Choices {
+		if n > 0 {
+			str += ","
+		}
+		str += " ["
+		strs := make([]string, len(v))
+		for i := range v {
+			strs[i] = string(v[i])
+		}
+		str += strings.Join(strs, " | ")
+		str += "]"
+	}
+	return str + "}"
 }
 
 // New creates an Wild Aho-Corasick tree
@@ -51,12 +72,14 @@ func New(seqs []Seq) *Wac {
 	root.addGotos(seqs, false)
 	root.addFails(false)
 	wac.zero, wac.root = zero, root
+	wac.ProgressLimit = 32768
 	return wac
 }
 
 type Wac struct {
-	zero *node
-	root *node
+	zero          *node
+	root          *node
+	ProgressLimit int // set the point at which we no longer care about progress
 }
 
 type node struct {
@@ -93,6 +116,7 @@ type out struct {
 	seqIndex int
 	subIndex int
 	length   int
+	final    bool
 }
 
 type outs []out
@@ -109,12 +133,16 @@ func (outs outs) contains(out out) bool {
 func (start *node) addGotos(seqs []Seq, zero bool) {
 	// iterate through byte sequences adding goto links to the link matrix
 	for id, seq := range seqs {
-		for i, v := range seq.Choices {
+		for i, choice := range seq.Choices {
 			// skip the first choice set if this isn't the zero tree and it is at 0 offset
 			if !zero && i == 0 && seq.Max == 0 {
 				continue
 			}
-			for _, byts := range v {
+			var f bool
+			if i == len(seq.Choices)-1 {
+				f = true
+			}
+			for _, byts := range choice {
 				curr := start
 				for _, byt := range byts {
 					if t, ok := curr.transit.get(byt); ok {
@@ -130,7 +158,7 @@ func (start *node) addGotos(seqs []Seq, zero bool) {
 				if i > 0 {
 					max = -1
 				}
-				curr.output = append(curr.output, out{max, id, i, len(byts)})
+				curr.output = append(curr.output, out{max, id, i, len(byts), f})
 			}
 		}
 	}
@@ -192,9 +220,9 @@ func (start *node) addFails(zero bool) *node {
 // Index returns a channel of results, these contain the indexes (in the list of sequences that made the tree)
 // and offsets (in the input byte slice) of matching sequences.
 // Has a quit channel that should be closed to signal quit.
-func (wac *Wac) Index(input io.ByteReader, quit chan struct{}) chan Result {
+func (wac *Wac) Index(input io.ByteReader, progress chan int, quit chan struct{}) chan Result {
 	output := make(chan Result, 20)
-	go wac.match(input, output, quit)
+	go wac.match(input, output, progress, quit)
 	return output
 }
 
@@ -203,9 +231,10 @@ type Result struct {
 	Index  [2]int
 	Offset int
 	Length int
+	Final  bool
 }
 
-func (wac *Wac) match(input io.ByteReader, results chan Result, quit chan struct{}) {
+func (wac *Wac) match(input io.ByteReader, results chan Result, progress chan int, quit chan struct{}) {
 	var offset int
 	precons := make(map[[2]int]bool)
 	curr := wac.zero
@@ -236,9 +265,12 @@ func (wac *Wac) match(input io.ByteReader, results chan Result, quit chan struct
 			if o.max == -1 || o.max >= offset-o.length {
 				if o.subIndex == 0 || precons[[2]int{o.seqIndex, o.subIndex - 1}] {
 					precons[[2]int{o.seqIndex, o.subIndex}] = true
-					results <- Result{Index: [2]int{o.seqIndex, o.subIndex}, Offset: offset - o.length, Length: o.length}
+					results <- Result{Index: [2]int{o.seqIndex, o.subIndex}, Offset: offset - o.length, Length: o.length, Final: o.final}
 				}
 			}
+		}
+		if offset < wac.ProgressLimit && offset^1024 == 0 {
+			progress <- offset
 		}
 	}
 	close(results)
