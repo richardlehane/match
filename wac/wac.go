@@ -40,14 +40,21 @@ import (
 
 type Choice [][]byte
 
-// A Sequence is an ordered set of slices of byte slices (choices), with a maximum offset for the first set of choices
+// A Sequence is an ordered set of slices of byte slices (choices), with a maximum offset for the first set of choices as well as a total max that covers all choices
 type Seq struct {
-	Max     int
-	Choices []Choice
+	MaxOffsets []int
+	Choices    []Choice
 }
 
 func (s Seq) String() string {
-	str := fmt.Sprintf("{Max: %d; Choices:", s.Max)
+	str := "{Offsets:"
+	for n, v := range s.MaxOffsets {
+		if n > 0 {
+			str += ","
+		}
+		str += fmt.Sprintf(" %d", v)
+	}
+	str += "; Choices:"
 	for n, v := range s.Choices {
 		if n > 0 {
 			str += ","
@@ -135,7 +142,7 @@ func (start *node) addGotos(seqs []Seq, zero bool) {
 	for id, seq := range seqs {
 		for i, choice := range seq.Choices {
 			// skip the first choice set if this isn't the zero tree and it is at 0 offset
-			if !zero && i == 0 && seq.Max == 0 {
+			if !zero && i == 0 && seq.MaxOffsets[0] == 0 {
 				continue
 			}
 			var f bool
@@ -154,10 +161,7 @@ func (start *node) addGotos(seqs []Seq, zero bool) {
 						curr = node
 					}
 				}
-				max := seq.Max
-				if i > 0 {
-					max = -1
-				}
+				max := seq.MaxOffsets[i]
 				curr.output = append(curr.output, out{max, id, i, len(byts), f})
 			}
 		}
