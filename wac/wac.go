@@ -79,7 +79,7 @@ func New(seqs []Seq) *Wac {
 	root.addGotos(seqs, false)
 	root.addFails(false)
 	wac.zero, wac.root = zero, root
-	wac.ProgressLimit = 32768
+	wac.ProgressLimit = 32768 * 2
 	return wac
 }
 
@@ -273,7 +273,7 @@ func (wac *Wac) match(input io.ByteReader, results chan Result, progress chan in
 				}
 			}
 		}
-		if offset < wac.ProgressLimit && offset^1024 == 0 {
+		if offset < wac.ProgressLimit && offset%1024 == 0 {
 			progress <- offset
 		}
 	}
