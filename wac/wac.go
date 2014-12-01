@@ -21,6 +21,8 @@
 // The results returned are for the matches on subsequences (NOT the full sequences).
 // The index of those subsequences and the offset is returned.
 // It is up to clients to verify that the complete sequence that they are interested in has matched.
+// A "progress" result is sent from offset 1024 onwards. This is to update clients on scanning progress and has index -1,-1.
+// This result is sent on powers of two (1024, 2048, 4096, etc.)
 
 // Example usage:
 //
@@ -40,7 +42,7 @@ import (
 
 type Choice [][]byte
 
-// A Sequence is an ordered set of slices of byte slices (choices), with a maximum offset for the first set of choices as well as a total max that covers all choices
+// Seq is an ordered set of slices of byte slices (choices), with maximum offsets for each choice
 type Seq struct {
 	MaxOffsets []int
 	Choices    []Choice
@@ -79,14 +81,12 @@ func New(seqs []Seq) *Wac {
 	root.addGotos(seqs, false)
 	root.addFails(false)
 	wac.zero, wac.root = zero, root
-	wac.ProgressLimit = 32768 * 2
 	return wac
 }
 
 type Wac struct {
-	zero          *node
-	root          *node
-	ProgressLimit int // set the point at which we no longer care about progress
+	zero *node
+	root *node
 }
 
 type node struct {
@@ -224,9 +224,9 @@ func (start *node) addFails(zero bool) *node {
 // Index returns a channel of results, these contain the indexes (in the list of sequences that made the tree)
 // and offsets (in the input byte slice) of matching sequences.
 // Has a quit channel that should be closed to signal quit.
-func (wac *Wac) Index(input io.ByteReader, progress chan int, quit chan struct{}) chan Result {
+func (wac *Wac) Index(input io.ByteReader, quit chan struct{}) chan Result {
 	output := make(chan Result, 20)
-	go wac.match(input, output, progress, quit)
+	go wac.match(input, output, quit)
 	return output
 }
 
@@ -238,7 +238,9 @@ type Result struct {
 	Final  bool
 }
 
-func (wac *Wac) match(input io.ByteReader, results chan Result, progress chan int, quit chan struct{}) {
+var progressResult = Result{Index: [2]int{-1, -1}}
+
+func (wac *Wac) match(input io.ByteReader, results chan Result, quit chan struct{}) {
 	var offset int
 	precons := make(map[[2]int]bool)
 	curr := wac.zero
@@ -273,8 +275,9 @@ func (wac *Wac) match(input io.ByteReader, results chan Result, progress chan in
 				}
 			}
 		}
-		if offset < wac.ProgressLimit && offset%1024 == 0 {
-			progress <- offset
+		if offset >= 1024 && offset&(^offset+1) == offset {
+			progressResult.Offset = offset
+			results <- progressResult
 		}
 	}
 	close(results)
