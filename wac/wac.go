@@ -225,7 +225,7 @@ func (start *node) addFails(zero bool) *node {
 // and offsets (in the input byte slice) of matching sequences.
 // Has a quit channel that should be closed to signal quit.
 func (wac *Wac) Index(input io.ByteReader, quit chan struct{}) chan Result {
-	output := make(chan Result, 20)
+	output := make(chan Result)
 	go wac.match(input, output, quit)
 	return output
 }
