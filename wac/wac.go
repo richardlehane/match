@@ -242,7 +242,7 @@ var progressResult = Result{Index: [2]int{-1, -1}}
 
 func (wac *Wac) match(input io.ByteReader, results chan Result, quit chan struct{}) {
 	var offset int
-	precons := make(map[[2]int]bool)
+	precons := make(map[[2]int]int)
 	curr := wac.zero
 	for {
 		select {
@@ -269,8 +269,10 @@ func (wac *Wac) match(input io.ByteReader, results chan Result, quit chan struct
 		}
 		for _, o := range curr.output {
 			if o.max == -1 || o.max >= offset-o.length {
-				if o.subIndex == 0 || precons[[2]int{o.seqIndex, o.subIndex - 1}] {
-					precons[[2]int{o.seqIndex, o.subIndex}] = true
+				if o.subIndex == 0 || (precons[[2]int{o.seqIndex, o.subIndex - 1}] != 0 && offset-o.length >= precons[[2]int{o.seqIndex, o.subIndex - 1}]) {
+					if precons[[2]int{o.seqIndex, o.subIndex}] == 0 {
+						precons[[2]int{o.seqIndex, o.subIndex}] = offset
+					}
 					results <- Result{Index: [2]int{o.seqIndex, o.subIndex}, Offset: offset - o.length, Length: o.length, Final: o.final}
 				}
 			}
