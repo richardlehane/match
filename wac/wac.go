@@ -26,9 +26,16 @@
 
 // Example usage:
 //
-//     w := wac.New()
-//     seq := wac.Seq(1, []wac.Choice{wac.Choice{[]byte{'b'}}, wac.Choice{[]byte{'a','d'}}, wac.Choice{[]byte{'r', 'a'}}})
-//     for result := range w.Index(bytes.NewBuffer([]byte("abracadabra")), make(chan {}struct)) {
+//   w := wac.New()
+//   seq := wac.Seq(
+//     MaxOffsets: []int64{-1},
+//       Choices: []wac.Choice{
+//         wac.Choice{[]byte{'b'},[]byte{'c'},[]byte{'d'}},
+//         wac.Choice{[]byte{'a','d'}},
+//         wac.Choice{[]byte{'r', 'a'}},
+//       }
+//     )
+//     for result := range w.Index(bytes.NewBuffer([]byte("abracadabra")), make(chan {}struct)) { // supply a io.Reader and a quit channel
 // 	     fmt.Println(result.Index, "-", result.Offset)
 //     }
 
@@ -44,7 +51,7 @@ type Choice [][]byte
 
 // Seq is an ordered set of slices of byte slices (choices), with maximum offsets for each choice
 type Seq struct {
-	MaxOffsets []int
+	MaxOffsets []int64
 	Choices    []Choice
 }
 
@@ -119,7 +126,7 @@ func (t *trans) get(b byte) (*node, bool) {
 func newTrans() *trans { return &trans{keys: make([]byte, 0, 50), gotos: new([256]*node)} }
 
 type out struct {
-	max      int
+	max      int64
 	seqIndex int
 	subIndex int
 	length   int
@@ -233,7 +240,7 @@ func (wac *Wac) Index(input io.ByteReader, quit chan struct{}) chan Result {
 // Result contains the index (in the list of sequences that made the tree) and offset of matches.
 type Result struct {
 	Index  [2]int
-	Offset int
+	Offset int64
 	Length int
 	Final  bool
 }
@@ -241,8 +248,8 @@ type Result struct {
 var progressResult = Result{Index: [2]int{-1, -1}}
 
 func (wac *Wac) match(input io.ByteReader, results chan Result, quit chan struct{}) {
-	var offset int
-	precons := make(map[[2]int]int)
+	var offset int64
+	precons := make(map[[2]int]int64)
 	curr := wac.zero
 	for {
 		select {
@@ -268,12 +275,12 @@ func (wac *Wac) match(input io.ByteReader, results chan Result, quit chan struct
 			}
 		}
 		for _, o := range curr.output {
-			if o.max == -1 || o.max >= offset-o.length {
-				if o.subIndex == 0 || (precons[[2]int{o.seqIndex, o.subIndex - 1}] != 0 && offset-o.length >= precons[[2]int{o.seqIndex, o.subIndex - 1}]) {
+			if o.max == -1 || o.max >= offset-int64(o.length) {
+				if o.subIndex == 0 || (precons[[2]int{o.seqIndex, o.subIndex - 1}] != 0 && offset-int64(o.length) >= precons[[2]int{o.seqIndex, o.subIndex - 1}]) {
 					if precons[[2]int{o.seqIndex, o.subIndex}] == 0 {
 						precons[[2]int{o.seqIndex, o.subIndex}] = offset
 					}
-					results <- Result{Index: [2]int{o.seqIndex, o.subIndex}, Offset: offset - o.length, Length: o.length, Final: o.final}
+					results <- Result{Index: [2]int{o.seqIndex, o.subIndex}, Offset: offset - int64(o.length), Length: o.length, Final: o.final}
 				}
 			}
 		}

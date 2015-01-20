@@ -35,7 +35,7 @@ func test(t *testing.T, a []byte, b []Seq, expect []Result) {
 }
 
 func seq(s string) Seq {
-	return Seq{[]int{-1}, []Choice{Choice{[]byte(s)}}}
+	return Seq{[]int64{-1}, []Choice{Choice{[]byte(s)}}}
 }
 
 // Tests (the test strings are taken from John Graham-Cumming's lua implementation: https://github.com/jgrahamc/aho-corasick-lua Copyright (c) 2013 CloudFlare)
@@ -137,16 +137,16 @@ func TestLong(t *testing.T) {
 
 func TestOffset(t *testing.T) {
 	test(t, []byte("The pot had a handle"),
-		[]Seq{Seq{[]int{0}, []Choice{Choice{[]byte("pot")}}}, Seq{[]int{18}, []Choice{Choice{[]byte("l")}}}},
+		[]Seq{Seq{[]int64{0}, []Choice{Choice{[]byte("pot")}}}, Seq{[]int64{18}, []Choice{Choice{[]byte("l")}}}},
 		[]Result{Result{[2]int{1, 0}, 18, 1, true}})
 }
 
 func TestChoices(t *testing.T) {
 	test(t, []byte("The pot had a handle"),
 		[]Seq{
-			Seq{[]int{0, 18, -1}, []Choice{Choice{[]byte("The")}, Choice{[]byte("pot")}, Choice{[]byte("l")}}},
-			Seq{[]int{-1}, []Choice{Choice{[]byte("The")}}},
-			Seq{[]int{8, -1}, []Choice{Choice{[]byte("had")}, Choice{[]byte("ndle")}}},
+			Seq{[]int64{0, 18, -1}, []Choice{Choice{[]byte("The")}, Choice{[]byte("pot")}, Choice{[]byte("l")}}},
+			Seq{[]int64{-1}, []Choice{Choice{[]byte("The")}}},
+			Seq{[]int64{8, -1}, []Choice{Choice{[]byte("had")}, Choice{[]byte("ndle")}}},
 		},
 		[]Result{
 			Result{[2]int{0, 0}, 0, 3, false},
@@ -161,7 +161,7 @@ func TestChoices(t *testing.T) {
 func TestProgess(t *testing.T) {
 	test(t, make([]byte, 32768),
 		[]Seq{
-			Seq{[]int{-1}, []Choice{Choice{[]byte("The")}}},
+			Seq{[]int64{-1}, []Choice{Choice{[]byte("The")}}},
 		},
 		[]Result{
 			Result{[2]int{-1, -1}, 1024, 0, false},
