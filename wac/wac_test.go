@@ -27,7 +27,7 @@ func loop(output chan Result) []Result {
 
 func test(t *testing.T, a []byte, b []Seq, expect []Result) {
 	wac := New(b)
-	output := wac.Index(bytes.NewBuffer(a), make(chan struct{}))
+	output := wac.Index(bytes.NewBuffer(a))
 	results := loop(output)
 	if !equal(expect, results) {
 		t.Errorf("Index fail; Expecting: %v, Got: %v", expect, results)
@@ -186,7 +186,7 @@ func BenchmarkIndex(b *testing.B) {
 	input := bytes.NewBuffer([]byte("The pot had a handle"))
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		r := ac.Index(input, make(chan struct{}))
+		r := ac.Index(input)
 		for _ = range r {
 		}
 	}
@@ -227,7 +227,7 @@ func BenchmarkMatchingNoMatch(b *testing.B) {
 		seq("abababb"),
 		seq("abababababq")})
 	b.StartTimer()
-	r := ac.Index(reader, make(chan struct{}))
+	r := ac.Index(reader)
 	for _ = range r {
 	}
 }
@@ -240,7 +240,7 @@ func BenchmarkMatchingManyMatches(b *testing.B) {
 		seq("ababab"),
 		seq("ababababab")})
 	b.StartTimer()
-	r := ac.Index(reader, make(chan struct{}))
+	r := ac.Index(reader)
 	for _ = range r {
 	}
 }
@@ -250,7 +250,7 @@ func BenchmarkMatchingHardTree(b *testing.B) {
 	reader := bytes.NewBuffer(benchmarkValue(b.N))
 	ac := New(hardTree())
 	b.StartTimer()
-	r := ac.Index(reader, make(chan struct{}))
+	r := ac.Index(reader)
 	for _ = range r {
 	}
 }

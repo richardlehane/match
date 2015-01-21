@@ -35,7 +35,7 @@
 //         wac.Choice{[]byte{'r', 'a'}},
 //       }
 //     )
-//     for result := range w.Index(bytes.NewBuffer([]byte("abracadabra")), make(chan {}struct)) { // supply a io.Reader and a quit channel
+//     for result := range w.Index(bytes.NewBuffer([]byte("abracadabra"))) {
 // 	     fmt.Println(result.Index, "-", result.Offset)
 //     }
 
@@ -230,10 +230,9 @@ func (start *node) addFails(zero bool) *node {
 
 // Index returns a channel of results, these contain the indexes (in the list of sequences that made the tree)
 // and offsets (in the input byte slice) of matching sequences.
-// Has a quit channel that should be closed to signal quit.
-func (wac *Wac) Index(input io.ByteReader, quit chan struct{}) chan Result {
+func (wac *Wac) Index(input io.ByteReader) chan Result {
 	output := make(chan Result)
-	go wac.match(input, output, quit)
+	go wac.match(input, output)
 	return output
 }
 
@@ -247,17 +246,11 @@ type Result struct {
 
 var progressResult = Result{Index: [2]int{-1, -1}}
 
-func (wac *Wac) match(input io.ByteReader, results chan Result, quit chan struct{}) {
+func (wac *Wac) match(input io.ByteReader, results chan Result) {
 	var offset int64
 	precons := make(map[[2]int]int64)
 	curr := wac.zero
 	for {
-		select {
-		case <-quit:
-			close(results)
-			return
-		default:
-		}
 		c, err := input.ReadByte()
 		if err != nil {
 			break
