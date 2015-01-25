@@ -32,6 +32,12 @@ func test(t *testing.T, a []byte, b []Seq, expect []Result) {
 	if !equal(expect, results) {
 		t.Errorf("Index fail; Expecting: %v, Got: %v", expect, results)
 	}
+	wac2 := NewLowMem(b)
+	output = wac2.Index(bytes.NewBuffer(a))
+	results = loop(output)
+	if !equal(expect, results) {
+		t.Errorf("Index fail for Low Mem; Expecting: %v, Got: %v", expect, results)
+	}
 }
 
 func seq(s string) Seq {
@@ -49,8 +55,8 @@ func TestSimple(t *testing.T) {
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq("poto")},
 		[]Result{})
-	test(t, []byte("The pot had a handle"),
-		[]Seq{seq("The")},
+	test(t, []byte("The pot had a handle The"),
+		[]Seq{Seq{[]int64{0}, []Choice{Choice{[]byte("The")}}}},
 		[]Result{Result{[2]int{0, 0}, 0, 3, true}})
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq("pot")},

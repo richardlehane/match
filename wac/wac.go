@@ -82,12 +82,22 @@ func (s Seq) String() string {
 // New creates an Wild Aho-Corasick tree
 func New(seqs []Seq) *Wac {
 	wac := new(Wac)
-	zero := newNode()
-	zero.addGotos(seqs, true)
-	root := zero.addFails(true)
-	root.addGotos(seqs, false)
-	root.addFails(false)
+	zero := newNode(newTrans)
+	zero.addGotos(seqs, true, newTrans) // TODO: cld use low memory here?
+	root := zero.addFails(true, newTrans)
+	root.addGotos(seqs, false, newTrans)
+	root.addFails(false, nil)
 	wac.zero, wac.root = zero, root
+	return wac
+}
+
+// New Low Mem creates a Wild Aho-Corasick tree with lower memory requirements (single tree, low mem transitions)
+func NewLowMem(seqs []Seq) *Wac {
+	wac := new(Wac)
+	root := newNode(newTransLM)
+	root.addGotos(seqs, true, newTransLM)
+	root.addFails(false, nil)
+	wac.zero, wac.root = root, root
 	return wac
 }
 
@@ -98,32 +108,12 @@ type Wac struct {
 
 type node struct {
 	val     byte
-	transit *trans // the goto function
-	fail    *node  // the fail function
-	output  outs   // the output function
+	transit transition // the goto function
+	fail    *node      // the fail function
+	output  outs       // the output function
 }
 
-func newNode() *node { return &node{transit: newTrans(), output: make(outs, 0, 10)} }
-
-type trans struct {
-	keys  []byte
-	gotos *[256]*node // the goto function is a pointer to an array of 256 nodes, indexed by the byte val
-}
-
-func (t *trans) put(b byte, n *node) {
-	t.keys = append(t.keys, b)
-	t.gotos[b] = n
-}
-
-func (t *trans) get(b byte) (*node, bool) {
-	n := t.gotos[b]
-	if n == nil {
-		return n, false
-	}
-	return n, true
-}
-
-func newTrans() *trans { return &trans{keys: make([]byte, 0, 50), gotos: new([256]*node)} }
+func newNode(fn transitionFunc) *node { return &node{transit: fn(), output: outs{}} }
 
 type out struct {
 	max      int64
@@ -144,7 +134,7 @@ func (outs outs) contains(out out) bool {
 	return false
 }
 
-func (start *node) addGotos(seqs []Seq, zero bool) {
+func (start *node) addGotos(seqs []Seq, zero bool, fn transitionFunc) {
 	// iterate through byte sequences adding goto links to the link matrix
 	for id, seq := range seqs {
 		for i, choice := range seq.Choices {
@@ -159,14 +149,7 @@ func (start *node) addGotos(seqs []Seq, zero bool) {
 			for _, byts := range choice {
 				curr := start
 				for _, byt := range byts {
-					if t, ok := curr.transit.get(byt); ok {
-						curr = t
-					} else {
-						node := newNode()
-						node.val = byt
-						curr.transit.put(byt, node)
-						curr = node
-					}
+					curr = curr.transit.put(byt, fn)
 				}
 				max := seq.MaxOffsets[i]
 				curr.output = append(curr.output, out{max, id, i, len(byts), f})
@@ -175,19 +158,29 @@ func (start *node) addGotos(seqs []Seq, zero bool) {
 	}
 }
 
-func (start *node) addFails(zero bool) *node {
+func (start *node) addFails(zero bool, tfn transitionFunc) *node {
 	// root and its children fail to root
 	start.fail = start
-	for _, k := range start.transit.keys {
-		start.transit.gotos[k].fail = start
+	start.transit.finalise()
+	for i := 0; ; i++ {
+		n := start.transit.iter(i)
+		if n == nil {
+			break
+		}
+		n.fail = start
+		n.transit.finalise()
 	}
 	// traverse tree in breadth first search adding fails
 	queue := make([]*node, 0, 50)
 	queue = append(queue, start)
 	for len(queue) > 0 {
 		pop := queue[0]
-		for _, key := range pop.transit.keys {
-			node := pop.transit.gotos[key]
+		for i := 0; ; i++ {
+			node := pop.transit.iter(i)
+			if node == nil {
+				break
+			}
+			node.transit.finalise()
 			queue = append(queue, node)
 			// starting from the node's parent, follow the fails back towards root,
 			// and stop at the first fail that has a goto to the node's value
@@ -218,10 +211,14 @@ func (start *node) addFails(zero bool) *node {
 	}
 	// for the zero tree, rewrite the fail links so they now point to the root of the main tree
 	if zero {
-		root := newNode()
+		root := newNode(tfn)
 		start.fail = root
-		for _, k := range start.transit.keys {
-			start.transit.gotos[k].fail = root
+		for i := 0; ; i++ {
+			n := start.transit.iter(i)
+			if n == nil {
+				break
+			}
+			n.fail = root
 		}
 		return root
 	}
