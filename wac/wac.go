@@ -26,18 +26,23 @@
 
 // Example usage:
 //
-//   w := wac.New()
-//   seq := wac.Seq(
-//     MaxOffsets: []int64{-1},
-//       Choices: []wac.Choice{
-//         wac.Choice{[]byte{'b'},[]byte{'c'},[]byte{'d'}},
-//         wac.Choice{[]byte{'a','d'}},
-//         wac.Choice{[]byte{'r', 'a'}},
-//       }
-//     )
-//     for result := range w.Index(bytes.NewBuffer([]byte("abracadabra"))) {
-// 	     fmt.Println(result.Index, "-", result.Offset)
+//   seq := wac.Seq{
+//     MaxOffsets: []int64{5, -1},
+//     Choices: []wac.Choice{
+//       wac.Choice{[]byte{'b'},[]byte{'c'},[]byte{'d'}},
+//       wac.Choice{[]byte{'a','d'}},
+//       wac.Choice{[]byte{'r', 'x'}},
+//       []wac.Choice{[]byte{'a'}},
 //     }
+//   }
+//   secondSeq := wac.Seq{
+//     MaxOffsets: []int64{0},
+//     Choices: []wac.Choice{wac.Choice{[]byte{'b'}}},
+//   }
+//   w := wac.New([]wac.Seq{seq, secondSeq})
+//   for result := range w.Index(bytes.NewBuffer([]byte("abracadabra"))) {
+// 	   fmt.Println(result.Index, "-", result.Offset)
+//   }
 
 package wac
 
