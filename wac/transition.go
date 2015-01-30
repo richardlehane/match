@@ -4,6 +4,8 @@ import "sort"
 
 type transitionFunc func() transition
 
+// transitions are defined as an interface.
+// This allows two implementations: a bloated but fast (trans), and a trim but a bit slower (transLM) version
 type transition interface {
 	get(byte) (*node, bool)
 	put(byte, transitionFunc) *node

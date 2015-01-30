@@ -52,11 +52,12 @@ import (
 	"strings"
 )
 
+// Choice represents the different byte slices that can occur at each position of the Seq
 type Choice [][]byte
 
-// Seq is an ordered set of slices of byte slices (choices), with maximum offsets for each choice
+// Seq is an ordered set of slices of Choices, with maximum offsets for each choice
 type Seq struct {
-	MaxOffsets []int64
+	MaxOffsets []int64 // maximum offsets for each choice. Can be -1 for wildcard.
 	Choices    []Choice
 }
 
@@ -93,6 +94,7 @@ func New(seqs []Seq) *Wac {
 	root.addGotos(seqs, false, newTrans)
 	root.addFails(false, nil)
 	wac.zero, wac.root = zero, root
+	wac.p = newPool(seqs)
 	return wac
 }
 
@@ -103,12 +105,15 @@ func NewLowMem(seqs []Seq) *Wac {
 	root.addGotos(seqs, true, newTransLM)
 	root.addFails(false, nil)
 	wac.zero, wac.root = root, root
+	wac.p = newPool(seqs)
 	return wac
 }
 
+// Wac is a wild Aho-Corasick tree
 type Wac struct {
 	zero *node
 	root *node
+	p    *pool // pool of preconditions
 }
 
 type node struct {
@@ -121,11 +126,11 @@ type node struct {
 func newNode(fn transitionFunc) *node { return &node{transit: fn(), output: outs{}} }
 
 type out struct {
-	max      int64
-	seqIndex int
-	subIndex int
-	length   int
-	final    bool
+	max      int64 // maximum offset at which can occur
+	seqIndex int   // index within all the Seqs in the Wac
+	subIndex int   // index of the Choice within the Seq
+	length   int   // length of byte slice
+	final    bool  // last Choice in a Seq?
 }
 
 type outs []out
@@ -230,7 +235,28 @@ func (start *node) addFails(zero bool, tfn transitionFunc) *node {
 	return start
 }
 
-// Index returns a channel of results, these contain the indexes (in the list of sequences that made the tree)
+// preconditions ensure that subsequent (>0) Choices in a Seq are only sent when previous Choices have already matched
+// previous matches are stored as offsets to prevent overlapping matches resulting in false positives
+type precons [][]int64
+
+func newPrecons(t []int) precons {
+	p := make([][]int64, len(t))
+	for i, v := range t {
+		p[i] = make([]int64, v)
+	}
+	return p
+}
+
+func clear(p precons) precons {
+	for i := range p {
+		for j := range p[i] {
+			p[i][j] = 0
+		}
+	}
+	return p
+}
+
+// Index returns a channel of results, these contain the indexes (a double index: index of the Seq and index of the Choice)
 // and offsets (in the input byte slice) of matching sequences.
 func (wac *Wac) Index(input io.ByteReader) chan Result {
 	output := make(chan Result)
@@ -238,25 +264,21 @@ func (wac *Wac) Index(input io.ByteReader) chan Result {
 	return output
 }
 
-// Result contains the index (in the list of sequences that made the tree) and offset of matches.
+// Result contains the index and offset of matches.
 type Result struct {
-	Index  [2]int
+	Index  [2]int // a double index: index of the Seq and index of the Choice
 	Offset int64
 	Length int
-	Final  bool
+	Final  bool // the last Choice in a Seq
 }
 
 var progressResult = Result{Index: [2]int{-1, -1}}
 
 func (wac *Wac) match(input io.ByteReader, results chan Result) {
 	var offset int64
-	precons := make(map[[2]int]int64)
+	precons := wac.p.get()
 	curr := wac.zero
-	for {
-		c, err := input.ReadByte()
-		if err != nil {
-			break
-		}
+	for c, err := input.ReadByte(); err == nil; c, err = input.ReadByte() {
 		offset++
 		if trans, ok := curr.transit.get(c); ok {
 			curr = trans
@@ -271,9 +293,9 @@ func (wac *Wac) match(input io.ByteReader, results chan Result) {
 		}
 		for _, o := range curr.output {
 			if o.max == -1 || o.max >= offset-int64(o.length) {
-				if o.subIndex == 0 || (precons[[2]int{o.seqIndex, o.subIndex - 1}] != 0 && offset-int64(o.length) >= precons[[2]int{o.seqIndex, o.subIndex - 1}]) {
-					if precons[[2]int{o.seqIndex, o.subIndex}] == 0 {
-						precons[[2]int{o.seqIndex, o.subIndex}] = offset
+				if o.subIndex == 0 || (precons[o.seqIndex][o.subIndex-1] != 0 && offset-int64(o.length) >= precons[o.seqIndex][o.subIndex-1]) {
+					if precons[o.seqIndex][o.subIndex] == 0 {
+						precons[o.seqIndex][o.subIndex] = offset
 					}
 					results <- Result{Index: [2]int{o.seqIndex, o.subIndex}, Offset: offset - int64(o.length), Length: o.length, Final: o.final}
 				}
@@ -284,5 +306,6 @@ func (wac *Wac) match(input io.ByteReader, results chan Result) {
 			results <- progressResult
 		}
 	}
+	wac.p.put(precons)
 	close(results)
 }
