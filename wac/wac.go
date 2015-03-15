@@ -272,10 +272,9 @@ type Result struct {
 	Final  bool // the last Choice in a Seq
 }
 
-var progressResult = Result{Index: [2]int{-1, -1}}
-
 func (wac *Wac) match(input io.ByteReader, results chan Result) {
 	var offset int64
+	var progressResult = Result{Index: [2]int{-1, -1}}
 	precons := wac.p.get()
 	curr := wac.zero
 	for c, err := input.ReadByte(); err == nil; c, err = input.ReadByte() {
