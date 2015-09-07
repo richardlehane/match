@@ -48,7 +48,7 @@ func seq(s string) Seq {
 func TestWikipedia(t *testing.T) {
 	test(t, []byte("abccab"),
 		[]Seq{seq("a"), seq("ab"), seq("bc"), seq("bca"), seq("c"), seq("caa")},
-		[]Result{Result{[2]int{0, 0}, 0, 1, true}, Result{[2]int{1, 0}, 0, 2, true}, Result{[2]int{2, 0}, 1, 2, true}, Result{[2]int{4, 0}, 2, 1, true}, Result{[2]int{4, 0}, 3, 1, true}, Result{[2]int{0, 0}, 4, 1, true}, Result{[2]int{1, 0}, 4, 2, true}})
+		[]Result{Result{[2]int{0, 0}, 0, 1}, Result{[2]int{1, 0}, 0, 2}, Result{[2]int{2, 0}, 1, 2}, Result{[2]int{4, 0}, 2, 1}, Result{[2]int{4, 0}, 3, 1}, Result{[2]int{0, 0}, 4, 1}, Result{[2]int{1, 0}, 4, 2}})
 }
 
 func TestSimple(t *testing.T) {
@@ -57,94 +57,94 @@ func TestSimple(t *testing.T) {
 		[]Result{})
 	test(t, []byte("The pot had a handle The"),
 		[]Seq{Seq{[]int64{0}, []Choice{Choice{[]byte("The")}}}},
-		[]Result{Result{[2]int{0, 0}, 0, 3, true}})
+		[]Result{Result{[2]int{0, 0}, 0, 3}})
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq("pot")},
-		[]Result{Result{[2]int{0, 0}, 4, 3, true}})
+		[]Result{Result{[2]int{0, 0}, 4, 3}})
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq("pot ")},
-		[]Result{Result{[2]int{0, 0}, 4, 4, true}})
+		[]Result{Result{[2]int{0, 0}, 4, 4}})
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq("ot h")},
-		[]Result{Result{[2]int{0, 0}, 5, 4, true}})
+		[]Result{Result{[2]int{0, 0}, 5, 4}})
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq("andle")},
-		[]Result{Result{[2]int{0, 0}, 15, 5, true}})
+		[]Result{Result{[2]int{0, 0}, 15, 5}})
 }
 
 func TestMultipleNonoverlapping(t *testing.T) {
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq("h")},
-		[]Result{Result{[2]int{0, 0}, 1, 1, true}, Result{[2]int{0, 0}, 8, 1, true}, Result{[2]int{0, 0}, 14, 1, true}})
+		[]Result{Result{[2]int{0, 0}, 1, 1}, Result{[2]int{0, 0}, 8, 1}, Result{[2]int{0, 0}, 14, 1}})
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq("ha"), seq("he")},
-		[]Result{Result{[2]int{1, 0}, 1, 2, true}, Result{[2]int{0, 0}, 8, 2, true}, Result{[2]int{0, 0}, 14, 2, true}})
+		[]Result{Result{[2]int{1, 0}, 1, 2}, Result{[2]int{0, 0}, 8, 2}, Result{[2]int{0, 0}, 14, 2}})
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq("pot"), seq("had")},
-		[]Result{Result{[2]int{0, 0}, 4, 3, true}, Result{[2]int{1, 0}, 8, 3, true}})
+		[]Result{Result{[2]int{0, 0}, 4, 3}, Result{[2]int{1, 0}, 8, 3}})
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq("pot"), seq("had"), seq("hod")},
-		[]Result{Result{[2]int{0, 0}, 4, 3, true}, Result{[2]int{1, 0}, 8, 3, true}})
+		[]Result{Result{[2]int{0, 0}, 4, 3}, Result{[2]int{1, 0}, 8, 3}})
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq("The"), seq("pot"), seq("had"), seq("hod"), seq("andle")},
-		[]Result{Result{[2]int{0, 0}, 0, 3, true}, Result{[2]int{1, 0}, 4, 3, true}, Result{[2]int{2, 0}, 8, 3, true}, Result{[2]int{4, 0}, 15, 5, true}})
+		[]Result{Result{[2]int{0, 0}, 0, 3}, Result{[2]int{1, 0}, 4, 3}, Result{[2]int{2, 0}, 8, 3}, Result{[2]int{4, 0}, 15, 5}})
 }
 
 func TestOverlapping(t *testing.T) {
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq("Th"), seq("he pot"), seq("The"), seq("pot h")},
-		[]Result{Result{[2]int{0, 0}, 0, 2, true}, Result{[2]int{2, 0}, 0, 3, true}, Result{[2]int{1, 0}, 1, 6, true}, Result{[2]int{3, 0}, 4, 5, true}})
+		[]Result{Result{[2]int{0, 0}, 0, 2}, Result{[2]int{2, 0}, 0, 3}, Result{[2]int{1, 0}, 1, 6}, Result{[2]int{3, 0}, 4, 5}})
 }
 
 func TestNesting(t *testing.T) {
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq("handle"), seq("hand"), seq("and"), seq("andle")},
-		[]Result{Result{[2]int{1, 0}, 14, 4, true}, Result{[2]int{2, 0}, 15, 3, true}, Result{[2]int{0, 0}, 14, 6, true}, Result{[2]int{3, 0}, 15, 5, true}})
+		[]Result{Result{[2]int{1, 0}, 14, 4}, Result{[2]int{2, 0}, 15, 3}, Result{[2]int{0, 0}, 14, 6}, Result{[2]int{3, 0}, 15, 5}})
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq("handle"), seq("hand"), seq("an"), seq("n")},
-		[]Result{Result{[2]int{2, 0}, 15, 2, true}, Result{[2]int{3, 0}, 16, 1, true}, Result{[2]int{1, 0}, 14, 4, true}, Result{[2]int{0, 0}, 14, 6, true}})
+		[]Result{Result{[2]int{2, 0}, 15, 2}, Result{[2]int{3, 0}, 16, 1}, Result{[2]int{1, 0}, 14, 4}, Result{[2]int{0, 0}, 14, 6}})
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq("dle"), seq("l"), seq("le")},
-		[]Result{Result{[2]int{1, 0}, 18, 1, true}, Result{[2]int{0, 0}, 17, 3, true}, Result{[2]int{2, 0}, 18, 2, true}})
+		[]Result{Result{[2]int{1, 0}, 18, 1}, Result{[2]int{0, 0}, 17, 3}, Result{[2]int{2, 0}, 18, 2}})
 }
 
 func TestRandom(t *testing.T) {
 	test(t, []byte("yasherhs"),
 		[]Seq{seq("say"), seq("she"), seq("shr"), seq("he"), seq("her")},
-		[]Result{Result{[2]int{1, 0}, 2, 3, true}, Result{[2]int{3, 0}, 3, 2, true}, Result{[2]int{4, 0}, 3, 3, true}})
+		[]Result{Result{[2]int{1, 0}, 2, 3}, Result{[2]int{3, 0}, 3, 2}, Result{[2]int{4, 0}, 3, 3}})
 }
 
 func TestFailPartial(t *testing.T) {
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq("dlf"), seq("l")},
-		[]Result{Result{[2]int{1, 0}, 18, 1, true}})
+		[]Result{Result{[2]int{1, 0}, 18, 1}})
 }
 
 func TestMany(t *testing.T) {
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq("handle"), seq("andle"), seq("ndle"), seq("dle"), seq("le"), seq("e")},
-		[]Result{Result{[2]int{5, 0}, 2, 1, true}, Result{[2]int{0, 0}, 14, 6, true}, Result{[2]int{1, 0}, 15, 5, true}, Result{[2]int{2, 0}, 16, 4, true}, Result{[2]int{3, 0}, 17, 3, true}, Result{[2]int{4, 0}, 18, 2, true}, Result{[2]int{5, 0}, 19, 1, true}})
+		[]Result{Result{[2]int{5, 0}, 2, 1}, Result{[2]int{0, 0}, 14, 6}, Result{[2]int{1, 0}, 15, 5}, Result{[2]int{2, 0}, 16, 4}, Result{[2]int{3, 0}, 17, 3}, Result{[2]int{4, 0}, 18, 2}, Result{[2]int{5, 0}, 19, 1}})
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq("handle"), seq("handl"), seq("hand"), seq("han"), seq("ha"), seq("a")},
-		[]Result{Result{[2]int{4, 0}, 8, 2, true}, Result{[2]int{5, 0}, 9, 1, true}, Result{[2]int{5, 0}, 12, 1, true}, Result{[2]int{4, 0}, 14, 2, true}, Result{[2]int{5, 0}, 15, 1, true}, Result{[2]int{3, 0}, 14, 3, true}, Result{[2]int{2, 0}, 14, 4, true}, Result{[2]int{1, 0}, 14, 5, true}, Result{[2]int{0, 0}, 14, 6, true}})
+		[]Result{Result{[2]int{4, 0}, 8, 2}, Result{[2]int{5, 0}, 9, 1}, Result{[2]int{5, 0}, 12, 1}, Result{[2]int{4, 0}, 14, 2}, Result{[2]int{5, 0}, 15, 1}, Result{[2]int{3, 0}, 14, 3}, Result{[2]int{2, 0}, 14, 4}, Result{[2]int{1, 0}, 14, 5}, Result{[2]int{0, 0}, 14, 6}})
 }
 
 func TestLong(t *testing.T) {
 	test(t, []byte("macintosh"),
 		[]Seq{seq("acintosh"), seq("in")},
-		[]Result{Result{[2]int{1, 0}, 3, 2, true}, Result{[2]int{0, 0}, 1, 8, true}})
+		[]Result{Result{[2]int{1, 0}, 3, 2}, Result{[2]int{0, 0}, 1, 8}})
 	test(t, []byte("macintosh"),
 		[]Seq{seq("acintosh"), seq("in"), seq("tosh")},
-		[]Result{Result{[2]int{1, 0}, 3, 2, true}, Result{[2]int{0, 0}, 1, 8, true}, Result{[2]int{2, 0}, 5, 4, true}})
+		[]Result{Result{[2]int{1, 0}, 3, 2}, Result{[2]int{0, 0}, 1, 8}, Result{[2]int{2, 0}, 5, 4}})
 	test(t, []byte("macintosh"),
 		[]Seq{seq("acintosh"), seq("into"), seq("to"), seq("in")},
-		[]Result{Result{[2]int{3, 0}, 3, 2, true}, Result{[2]int{1, 0}, 3, 4, true}, Result{[2]int{2, 0}, 5, 2, true}, Result{[2]int{0, 0}, 1, 8, true}})
+		[]Result{Result{[2]int{3, 0}, 3, 2}, Result{[2]int{1, 0}, 3, 4}, Result{[2]int{2, 0}, 5, 2}, Result{[2]int{0, 0}, 1, 8}})
 }
 
 func TestOffset(t *testing.T) {
 	test(t, []byte("The pot had a handle"),
 		[]Seq{Seq{[]int64{0}, []Choice{Choice{[]byte("pot")}}}, Seq{[]int64{18}, []Choice{Choice{[]byte("l")}}}},
-		[]Result{Result{[2]int{1, 0}, 18, 1, true}})
+		[]Result{Result{[2]int{1, 0}, 18, 1}})
 }
 
 func TestChoices(t *testing.T) {
@@ -155,12 +155,12 @@ func TestChoices(t *testing.T) {
 			Seq{[]int64{8, -1}, []Choice{Choice{[]byte("had")}, Choice{[]byte("ndle")}}},
 		},
 		[]Result{
-			Result{[2]int{0, 0}, 0, 3, false},
-			Result{[2]int{1, 0}, 0, 3, true},
-			Result{[2]int{0, 1}, 4, 3, false},
-			Result{[2]int{2, 0}, 8, 3, false},
-			Result{[2]int{0, 2}, 18, 1, true},
-			Result{[2]int{2, 1}, 16, 4, true},
+			Result{[2]int{0, 0}, 0, 3},
+			Result{[2]int{1, 0}, 0, 3},
+			Result{[2]int{0, 1}, 4, 3},
+			Result{[2]int{2, 0}, 8, 3},
+			Result{[2]int{0, 2}, 18, 1},
+			Result{[2]int{2, 1}, 16, 4},
 		})
 }
 
@@ -170,12 +170,12 @@ func TestProgess(t *testing.T) {
 			Seq{[]int64{-1}, []Choice{Choice{[]byte("The")}}},
 		},
 		[]Result{
-			Result{[2]int{-1, -1}, 1024, 0, false},
-			Result{[2]int{-1, -1}, 2048, 0, false},
-			Result{[2]int{-1, -1}, 4096, 0, false},
-			Result{[2]int{-1, -1}, 8192, 0, false},
-			Result{[2]int{-1, -1}, 16384, 0, false},
-			Result{[2]int{-1, -1}, 32768, 0, false},
+			Result{[2]int{-1, -1}, 1024, 0},
+			Result{[2]int{-1, -1}, 2048, 0},
+			Result{[2]int{-1, -1}, 4096, 0},
+			Result{[2]int{-1, -1}, 8192, 0},
+			Result{[2]int{-1, -1}, 16384, 0},
+			Result{[2]int{-1, -1}, 32768, 0},
 		})
 }
 

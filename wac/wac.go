@@ -130,7 +130,6 @@ type out struct {
 	seqIndex int   // index within all the Seqs in the Wac
 	subIndex int   // index of the Choice within the Seq
 	length   int   // length of byte slice
-	final    bool  // last Choice in a Seq?
 }
 
 type outs []out
@@ -152,17 +151,13 @@ func (start *node) addGotos(seqs []Seq, zero bool, fn transitionFunc) {
 			if !zero && i == 0 && seq.MaxOffsets[0] == 0 {
 				continue
 			}
-			var f bool
-			if i == len(seq.Choices)-1 {
-				f = true
-			}
 			for _, byts := range choice {
 				curr := start
 				for _, byt := range byts {
 					curr = curr.transit.put(byt, fn)
 				}
 				max := seq.MaxOffsets[i]
-				curr.output = append(curr.output, out{max, id, i, len(byts), f})
+				curr.output = append(curr.output, out{max, id, i, len(byts)})
 			}
 		}
 	}
@@ -269,7 +264,6 @@ type Result struct {
 	Index  [2]int // a double index: index of the Seq and index of the Choice
 	Offset int64
 	Length int
-	Final  bool // the last Choice in a Seq
 }
 
 func (wac *Wac) match(input io.ByteReader, results chan Result) {
@@ -296,7 +290,7 @@ func (wac *Wac) match(input io.ByteReader, results chan Result) {
 					if precons[o.seqIndex][o.subIndex] == 0 {
 						precons[o.seqIndex][o.subIndex] = offset
 					}
-					results <- Result{Index: [2]int{o.seqIndex, o.subIndex}, Offset: offset - int64(o.length), Length: o.length, Final: o.final}
+					results <- Result{Index: [2]int{o.seqIndex, o.subIndex}, Offset: offset - int64(o.length), Length: o.length}
 				}
 			}
 		}
