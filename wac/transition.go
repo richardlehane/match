@@ -7,7 +7,7 @@ type transitionFunc func() transition
 // transitions are defined as an interface.
 // This allows two implementations: a bloated but fast (trans), and a trim but a bit slower (transLM) version
 type transition interface {
-	get(byte) (*node, bool)
+	get(byte) *node
 	put(byte, transitionFunc) *node
 	iter(int) *node
 	finalise()
@@ -33,12 +33,8 @@ func (t *trans) put(b byte, fn transitionFunc) *node {
 	return t.gotos[b]
 }
 
-func (t *trans) get(b byte) (*node, bool) {
-	n := t.gotos[b]
-	if n == nil {
-		return n, false
-	}
-	return n, true
+func (t *trans) get(b byte) *node {
+	return t.gotos[b]
 }
 
 func (t *trans) finalise() {}
@@ -83,7 +79,7 @@ func (t *transLM) put(b byte, fn transitionFunc) *node {
 	return n
 }
 
-func (t *transLM) get(b byte) (*node, bool) {
+func (t *transLM) get(b byte) *node {
 	top, bottom := len(*t), 0
 	for top > bottom {
 		i := (top-bottom)/2 + bottom
@@ -93,10 +89,10 @@ func (t *transLM) get(b byte) (*node, bool) {
 		} else if b2 < b {
 			bottom = i + 1
 		} else {
-			return (*t)[i].n, true
+			return (*t)[i].n
 		}
 	}
-	return nil, false
+	return nil
 }
 
 func (t *transLM) finalise() {

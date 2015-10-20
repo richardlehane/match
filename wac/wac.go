@@ -120,10 +120,12 @@ type node struct {
 	val     byte
 	transit transition // the goto function
 	fail    *node      // the fail function
-	output  outs       // the output function
+	output  []out      // the output function
+	outMax  int64
+	outMaxL int
 }
 
-func newNode(fn transitionFunc) *node { return &node{transit: fn(), output: outs{}} }
+func newNode(fn transitionFunc) *node { return &node{transit: fn()} }
 
 type out struct {
 	max      int64 // maximum offset at which can occur
@@ -132,15 +134,32 @@ type out struct {
 	length   int   // length of byte slice
 }
 
-type outs []out
-
-func (outs outs) contains(out out) bool {
-	for _, o := range outs {
-		if o == out {
+func (n *node) contains(o out) bool {
+	if n.output == nil {
+		return false
+	}
+	for _, o1 := range n.output {
+		if o == o1 {
 			return true
 		}
 	}
 	return false
+}
+
+func (n *node) addOutput(o out) {
+	if n.output == nil {
+		n.output = []out{o}
+		n.outMax = o.max
+		n.outMaxL = o.length
+		return
+	}
+	if n.outMax > -1 && (o.max == -1 || o.max > n.outMax) {
+		n.outMax = o.max
+	}
+	if o.length > n.outMaxL {
+		n.outMaxL = o.length
+	}
+	n.output = append(n.output, o)
 }
 
 func (start *node) addGotos(seqs []Seq, zero bool, fn transitionFunc) {
@@ -157,7 +176,7 @@ func (start *node) addGotos(seqs []Seq, zero bool, fn transitionFunc) {
 					curr = curr.transit.put(byt, fn)
 				}
 				max := seq.MaxOffsets[i]
-				curr.output = append(curr.output, out{max, id, i, len(byts)})
+				curr.addOutput(out{max, id, i, len(byts)})
 			}
 		}
 	}
@@ -190,13 +209,13 @@ func (start *node) addFails(zero bool, tfn transitionFunc) *node {
 			// starting from the node's parent, follow the fails back towards root,
 			// and stop at the first fail that has a goto to the node's value
 			fail := pop.fail
-			_, ok := fail.transit.get(node.val)
-			for fail != start && !ok {
+			ok := fail.transit.get(node.val)
+			for fail != start && ok == nil {
 				fail = fail.fail
-				_, ok = fail.transit.get(node.val)
+				ok = fail.transit.get(node.val)
 			}
-			fnode, ok := fail.transit.get(node.val)
-			if ok && fnode != node {
+			fnode := fail.transit.get(node.val)
+			if fnode != nil && fnode != node {
 				node.fail = fnode
 			} else {
 				node.fail = start
@@ -204,9 +223,11 @@ func (start *node) addFails(zero bool, tfn transitionFunc) *node {
 			// another traverse back to root following the fails. This time add any unique out functions to the node
 			fail = node.fail
 			for fail != start {
-				for _, o := range fail.output {
-					if !node.output.contains(o) {
-						node.output = append(node.output, o)
+				if fail.output != nil {
+					for _, o := range fail.output {
+						if !node.contains(o) {
+							node.addOutput(o)
+						}
 					}
 				}
 				fail = fail.fail
@@ -273,24 +294,27 @@ func (wac *Wac) match(input io.ByteReader, results chan Result) {
 	curr := wac.zero
 	for c, err := input.ReadByte(); err == nil; c, err = input.ReadByte() {
 		offset++
-		if trans, ok := curr.transit.get(c); ok {
+		if trans := curr.transit.get(c); trans != nil {
 			curr = trans
 		} else {
 			for curr != wac.root {
 				curr = curr.fail
-				if trans, ok := curr.transit.get(c); ok {
+				if trans := curr.transit.get(c); trans != nil {
 					curr = trans
 					break
 				}
+
 			}
 		}
-		for _, o := range curr.output {
-			if o.max == -1 || o.max >= offset-int64(o.length) {
-				if o.subIndex == 0 || (precons[o.seqIndex][o.subIndex-1] != 0 && offset-int64(o.length) >= precons[o.seqIndex][o.subIndex-1]) {
-					if precons[o.seqIndex][o.subIndex] == 0 {
-						precons[o.seqIndex][o.subIndex] = offset
+		if curr.output != nil && (curr.outMax == -1 || curr.outMax >= offset-int64(curr.outMaxL)) {
+			for _, o := range curr.output {
+				if o.max == -1 || o.max >= offset-int64(o.length) {
+					if o.subIndex == 0 || (precons[o.seqIndex][o.subIndex-1] != 0 && offset-int64(o.length) >= precons[o.seqIndex][o.subIndex-1]) {
+						if precons[o.seqIndex][o.subIndex] == 0 {
+							precons[o.seqIndex][o.subIndex] = offset
+						}
+						results <- Result{Index: [2]int{o.seqIndex, o.subIndex}, Offset: offset - int64(o.length), Length: o.length}
 					}
-					results <- Result{Index: [2]int{o.seqIndex, o.subIndex}, Offset: offset - int64(o.length), Length: o.length}
 				}
 			}
 		}
