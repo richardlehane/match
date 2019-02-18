@@ -83,18 +83,18 @@ func New(s [][]byte) (*Rk, error) {
 		make(map[uint32]*seq),
 	}
 	if rk.l > windowSize {
-		return nil, fmt.Errorf("Rabin-Karp: input sequence length is too long, max is ", windowSize)
+		return nil, fmt.Errorf("Rabin-Karp: input sequence length is too long, max is %d", windowSize)
 	}
 	for i, v := range s {
 		if len(v) != rk.l {
-			return nil, fmt.Errorf("Rabin-Karp: all input sequences must be of equal length. Bad argument: ", v)
+			return nil, fmt.Errorf("Rabin-Karp: all input sequences must be of equal length. Bad argument: %s", v)
 		}
 		hash := hash(v)
 		if seq1, ok := rk.seqs[hash]; ok {
 			if bytes.Equal(v, seq1.val) {
-				return nil, fmt.Errorf("Rabin-Karp: all input sequences must be unique. Bad arguments: ", v, seq1.val)
+				return nil, fmt.Errorf("Rabin-Karp: all input sequences must be unique. Bad arguments: %v, %v", v, seq1.val)
 			}
-			return nil, fmt.Errorf("Rabin-Karp: hash collision! Collided: ", v, seq1.val)
+			return nil, fmt.Errorf("Rabin-Karp: hash collision! Collided: %v, %v", v, seq1.val)
 		}
 		rk.seqs[hash] = &seq{v, i}
 	}
