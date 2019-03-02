@@ -1,0 +1,8 @@
+github.com/richardlehane/characterize v1.0.0 h1:2MMnKFqYd+hsKpQrPkc5JjbcIzVBIfvSoaMd563GOj0=
+github.com/richardlehane/characterize v1.0.0/go.mod h1:9mhxzxtWkXoLQpkg+gt7ioK6//+3hrsv3VHkbj8kbuQ=
+github.com/richardlehane/siegfried v1.7.11 h1:g0V3zomhCUTcQZrCx2IPzs7fcfh+4T8wCnULtoL74tI=
+github.com/richardlehane/siegfried v1.7.11/go.mod h1:lJYAjU5blwkdXfW5NRldnJTwCTZ03py89hBzTPGUy/I=
+golang.org/x/sys v0.0.0-20190222171317-cd391775e71e h1:oF7qaQxUH6KzFdKN4ww7NpPdo53SZi4UlcksLrb2y/o=
+golang.org/x/sys v0.0.0-20190222171317-cd391775e71e/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
+golang.org/x/text v0.3.0 h1:g61tztE5qeGQ89tm6NTjjM9VPIm088od1l6aSorWRWg=
+golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=

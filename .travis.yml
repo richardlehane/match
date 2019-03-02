@@ -1,7 +1,7 @@
 language: go
 go:
   - 1.2
-  - 1.3
+  - stable
   - tip
 install:
   - go install github.com/richardlehane/match/ac
