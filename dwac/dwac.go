@@ -22,6 +22,9 @@ import (
 // Entanglement is an (OR) set of an (AND) set of bof/eof seqs that must be satisfied
 // up to the first wild in that seq
 // you only entangle with seqs that have fixed max offsets
+// [2]int, [2]int
+// [2]int
+// [2]int, [2]int, [2]int
 type Entanglement [][][2]int
 
 // Result contains the index and offset of matches.
@@ -32,9 +35,9 @@ type Result struct {
 }
 
 type Searcher struct {
-	bofOnce       sync.Once
+	bofOnce       *sync.Once
 	bofWac        Wac
-	eofOnce       sync.Once
+	eofOnce       *sync.Once
 	eofWac        Wac
 	maxBof        int
 	maxEof        int
