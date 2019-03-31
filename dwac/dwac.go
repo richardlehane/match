@@ -15,9 +15,44 @@
 package dwac
 
 import (
+	"fmt"
 	"io"
+	"strings"
 	"sync"
 )
+
+// Choice represents the different byte slices that can occur at each position of the Seq
+type Choice [][]byte
+
+// Seq is an ordered set of slices of Choices, with maximum offsets for each choice
+type Seq struct {
+	MaxOffsets []int64 // maximum offsets for each choice. Can be -1 for wildcard.
+	Choices    []Choice
+}
+
+func (s Seq) String() string {
+	str := "{Offsets:"
+	for n, v := range s.MaxOffsets {
+		if n > 0 {
+			str += ","
+		}
+		str += fmt.Sprintf(" %d", v)
+	}
+	str += "; Choices:"
+	for n, v := range s.Choices {
+		if n > 0 {
+			str += ","
+		}
+		str += " ["
+		strs := make([]string, len(v))
+		for i := range v {
+			strs[i] = string(v[i])
+		}
+		str += strings.Join(strs, " | ")
+		str += "]"
+	}
+	return str + "}"
+}
 
 // Entanglement is an (OR) set of an (AND) set of bof/eof seqs that must be satisfied
 // up to the first wild in that seq
@@ -39,14 +74,21 @@ type Searcher struct {
 	bofWac        Wac
 	eofOnce       *sync.Once
 	eofWac        Wac
-	maxBof        int
-	maxEof        int
-	wildSeqs      []Seq          // separate out wild sequences to create a dynamic searcher for wildcard matching
-	entanglements []Entanglement // same len as wildSeqs
+	MaxBof        int
+	MaxEof        int
+	BofSeqs       []Seq
+	EofSeqs       []Seq
+	WildSeqs      []Seq          // separate out wild sequences to create a dynamic searcher for wildcard matching
+	Entanglements []Entanglement // same len as wildSeqs
 }
 
 func New(bofSeqs []Seq, eofSeqs []Seq, entanglements map[int]Entanglement) *Searcher {
 	return nil
+}
+
+// do I need to return int indexes for this?
+func (s *Searcher) Add(bofSeqs []Seq, eofSeqs []Seq) {
+
 }
 
 // Search returns a channel of results, these contain the indexes (a double index: index of the Seq and index of the Choice)

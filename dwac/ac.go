@@ -16,48 +16,13 @@
 package dwac
 
 import (
-	"fmt"
 	"io"
 	"sort"
-	"strings"
 	"sync"
 )
 
 type Wac interface {
 	Index(io.ByteReader) chan Result
-}
-
-// Choice represents the different byte slices that can occur at each position of the Seq
-type Choice [][]byte
-
-// Seq is an ordered set of slices of Choices, with maximum offsets for each choice
-type Seq struct {
-	MaxOffsets []int64 // maximum offsets for each choice. Can be -1 for wildcard.
-	Choices    []Choice
-}
-
-func (s Seq) String() string {
-	str := "{Offsets:"
-	for n, v := range s.MaxOffsets {
-		if n > 0 {
-			str += ","
-		}
-		str += fmt.Sprintf(" %d", v)
-	}
-	str += "; Choices:"
-	for n, v := range s.Choices {
-		if n > 0 {
-			str += ","
-		}
-		str += " ["
-		strs := make([]string, len(v))
-		for i := range v {
-			strs[i] = string(v[i])
-		}
-		str += strings.Join(strs, " | ")
-		str += "]"
-	}
-	return str + "}"
 }
 
 // New creates an Wild Aho-Corasick tree
