@@ -54,13 +54,8 @@ func (s Seq) String() string {
 	return str + "}"
 }
 
-// Entanglement is an (OR) set of an (AND) set of bof/eof seqs that must be satisfied
-// up to the first wild in that seq
-// you only entangle with seqs that have fixed max offsets
-// [2]int, [2]int
-// [2]int
-// [2]int, [2]int, [2]int
-type Entanglement [][][2]int
+// Resume is indexes to wild sequences that should be searched in the dynamic phase
+type Resume []int
 
 // Result contains the index and offset of matches.
 type Result struct {
@@ -70,31 +65,24 @@ type Result struct {
 }
 
 type Searcher struct {
-	bofOnce       *sync.Once
-	bofWac        Wac
-	eofOnce       *sync.Once
-	eofWac        Wac
-	MaxBof        int
-	MaxEof        int
-	BofSeqs       []Seq
-	EofSeqs       []Seq
-	WildSeqs      []Seq          // separate out wild sequences to create a dynamic searcher for wildcard matching
-	Entanglements []Entanglement // same len as wildSeqs
+	once       *sync.Once
+	wac        Wac
+	maxOff     int
+	seqs       []Seq
+	wildSeqs   []Seq          // separate out wild sequences to create a dynamic searcher for wildcard matching
 }
 
-func New(bofSeqs []Seq, eofSeqs []Seq, entanglements map[int]Entanglement) *Searcher {
+func New(seqs []Seq, wildSeqs []Seq) *Searcher {
 	return nil
 }
 
-// do I need to return int indexes for this?
-func (s *Searcher) Add(bofSeqs []Seq, eofSeqs []Seq) {
 
-}
 
 // Search returns a channel of results, these contain the indexes (a double index: index of the Seq and index of the Choice)
 // and offsets (in the input byte slice) of matching sequences.
-func (s *Searcher) Search(bof, eof io.ByteReader) chan Result {
+func (s *Searcher) Search(rdr io.ByteReader) (<-chan Result, chan<- Resume) {
 	output := make(chan Result)
+	
 	// check bof
 	// check eof
 	// build wild matcher
