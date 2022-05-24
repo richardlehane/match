@@ -21,6 +21,16 @@ import (
 	"sync"
 )
 
+type Dwac struct {
+	maxOff  int
+	root    *node
+	precons *sync.Pool
+}
+
+func New(seqs []Seq) *Dwac {
+	return nil
+}
+
 // Choice represents the different byte slices that can occur at each position of the Seq
 type Choice [][]byte
 
@@ -55,7 +65,7 @@ func (s Seq) String() string {
 }
 
 // Resume is indexes to wild sequences that should be searched in the dynamic phase
-type Resume []int
+type Resume []Seq
 
 // Result contains the index and offset of matches.
 type Result struct {
@@ -64,28 +74,13 @@ type Result struct {
 	Length int
 }
 
-type Searcher struct {
-	once       *sync.Once
-	wac        Wac
-	maxOff     int
-	seqs       []Seq
-	wildSeqs   []Seq          // separate out wild sequences to create a dynamic searcher for wildcard matching
-}
+// Dwac returns a channel of results, which are double indexes (of the Seq and of the Choice),
+// and a resume channel, which is a list of wild Seq indexes
+func (s *Dwac) Index(rdr io.ByteReader) (<-chan Result, chan<- Resume) {
+	output, resume := make(chan Result), make(chan Resume)
 
-func New(seqs []Seq, wildSeqs []Seq) *Searcher {
-	return nil
-}
-
-
-
-// Search returns a channel of results, these contain the indexes (a double index: index of the Seq and index of the Choice)
-// and offsets (in the input byte slice) of matching sequences.
-func (s *Searcher) Search(rdr io.ByteReader) (<-chan Result, chan<- Resume) {
-	output := make(chan Result)
-	
-	// check bof
-	// check eof
-	// build wild matcher
-	// check wild bof
-	return output
+	// check ac
+	// wait on resume, then build wild ac
+	// check wild ac
+	return output, resume
 }
