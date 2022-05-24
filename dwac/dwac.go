@@ -22,13 +22,18 @@ import (
 )
 
 type Dwac struct {
-	maxOff  int
-	root    *node
-	precons *sync.Pool
+	maxOff int64
+	root   *node
+	p      *sync.Pool
 }
 
 func New(seqs []Seq) *Dwac {
-	return nil
+	d := &Dwac{}
+	d.root = &node{}
+	d.maxOff = d.root.addGotos(seqs)
+	d.root.addFails()
+	d.p = &sync.Pool{New: preconsFn(seqs)}
+	return d
 }
 
 // Choice represents the different byte slices that can occur at each position of the Seq
@@ -64,9 +69,6 @@ func (s Seq) String() string {
 	return str + "}"
 }
 
-// Resume is indexes to wild sequences that should be searched in the dynamic phase
-type Resume []Seq
-
 // Result contains the index and offset of matches.
 type Result struct {
 	Index  [2]int // a double index: index of the Seq and index of the Choice
@@ -75,12 +77,88 @@ type Result struct {
 }
 
 // Dwac returns a channel of results, which are double indexes (of the Seq and of the Choice),
-// and a resume channel, which is a list of wild Seq indexes
-func (s *Dwac) Index(rdr io.ByteReader) (<-chan Result, chan<- Resume) {
-	output, resume := make(chan Result), make(chan Resume)
-
-	// check ac
-	// wait on resume, then build wild ac
-	// check wild ac
+// and a resume channel, which is a slice of wild Seq indexes
+func (d *Dwac) Index(rdr io.ByteReader) (<-chan Result, chan<- []Seq) {
+	output, resume := make(chan Result), make(chan []Seq)
+	go d.match(rdr, output, resume)
 	return output, resume
+}
+
+func (dwac *Dwac) match(input io.ByteReader, results chan Result, resume chan []Seq) {
+	var offset int64
+	var resumeSignal = Result{Index: [2]int{-1, -1}}
+	p := dwac.p.Get().(precons)
+	curr := dwac.root
+	var c byte
+	var err error
+	for c, err = input.ReadByte(); err == nil; c, err = input.ReadByte() {
+		offset++
+		if trans := curr.transit[c]; trans != nil {
+			curr = trans
+		} else {
+			for curr != dwac.root {
+				curr = curr.fail
+				if trans := curr.transit[c]; trans != nil {
+					curr = trans
+					break
+				}
+			}
+		}
+		if curr.output != nil && (curr.outMax == -1 || curr.outMax >= offset-int64(curr.outMaxL)) {
+			for _, o := range curr.output {
+				if o.max == -1 || o.max >= offset-int64(o.length) {
+					if o.subIndex == 0 || (p[o.seqIndex][o.subIndex-1] != 0 && offset-int64(o.length) >= p[o.seqIndex][o.subIndex-1]) {
+						if p[o.seqIndex][o.subIndex] == 0 {
+							p[o.seqIndex][o.subIndex] = offset
+						}
+						results <- Result{Index: [2]int{o.seqIndex, o.subIndex}, Offset: offset - int64(o.length), Length: o.length}
+					}
+				}
+			}
+		}
+		if offset > int64(dwac.maxOff) && curr == dwac.root { // send powers of 2 greater than 512
+			break
+		}
+	}
+	// return precons
+	dwac.p.Put(clear(p))
+	// if EOF not reached or other file read error, try the resume channel
+	if err == nil {
+		results <- resumeSignal
+		seqs := <-resume
+		if len(seqs) > 0 {
+			curr = &node{}
+			curr.addGotos(seqs)
+			curr.addFails()
+			p = dwac.p.Get().(precons)
+			for c, err = input.ReadByte(); err == nil; c, err = input.ReadByte() {
+				offset++
+				if trans := curr.transit[c]; trans != nil {
+					curr = trans
+				} else {
+					for curr != dwac.root {
+						curr = curr.fail
+						if trans := curr.transit[c]; trans != nil {
+							curr = trans
+							break
+						}
+					}
+				}
+				if curr.output != nil && (curr.outMax == -1 || curr.outMax >= offset-int64(curr.outMaxL)) {
+					for _, o := range curr.output {
+						if o.max == -1 || o.max >= offset-int64(o.length) {
+							if o.subIndex == 0 || (p[o.seqIndex][o.subIndex-1] != 0 && offset-int64(o.length) >= p[o.seqIndex][o.subIndex-1]) {
+								if p[o.seqIndex][o.subIndex] == 0 {
+									p[o.seqIndex][o.subIndex] = offset
+								}
+								results <- Result{Index: [2]int{o.seqIndex, o.subIndex}, Offset: offset - int64(o.length), Length: o.length}
+							}
+						}
+					}
+				}
+			}
+		}
+		dwac.p.Put(clear(p))
+	}
+	close(results)
 }

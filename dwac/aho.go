@@ -15,65 +15,7 @@
 // This file implements Aho Corasick searching for the bytematcher package
 package dwac
 
-import (
-	"io"
-	"sort"
-	"sync"
-)
-
-type Wac interface {
-	Index(io.ByteReader) chan Result
-}
-
-// New creates an Wild Aho-Corasick tree
-func newWac(seqs []Seq) Wac {
-	zero := &node{keys: make([]byte, 0, 1)}
-	zero.addGotos(seqs, true) // TODO: cld use low memory here?
-	root := zero.addFails(true)
-	root.addGotos(seqs, false)
-	root.addFails(false)
-	return &fwac{
-		zero: zero,
-		root: root,
-		p:    &sync.Pool{New: preconsFn(seqs)},
-	}
-}
-
-// NewLowMem creates a Wild Aho-Corasick tree with lower memory requirements (single tree, low mem transitions)
-func newLowMemWac(seqs []Seq) Wac {
-	root := &nodelm{}
-	root.addGotos(seqs, true)
-	root.addFails(false)
-	return &fwaclm{
-		root: root,
-		p:    &sync.Pool{New: preconsFn(seqs)},
-	}
-}
-
-// NewWac creates either a low memory or regular Wild Aho-Corasick tree
-func new(lm bool, seqs []Seq) Wac {
-	if lm {
-		return newLowMemWac(seqs)
-	}
-	return newWac(seqs)
-}
-
-// fwac is a wild Aho-Corasick tree
-type fwac struct {
-	zero *node
-	root *node
-	p    *sync.Pool // pool of preconditions
-}
-
-// fwaclm is a wild Aho-Corasick tree that takes less RAM
-type fwaclm struct {
-	root *nodelm
-	p    *sync.Pool // pool of preconditions
-}
-
-// Nodes
-
-// out function is shared
+// out function
 type out struct {
 	max      int64 // maximum offset at which can occur
 	seqIndex int   // index within all the Seqs in the Wac
@@ -117,14 +59,11 @@ type node struct {
 	outMaxL int
 }
 
-func (start *node) addGotos(seqs []Seq, zero bool) {
+func (start *node) addGotos(seqs []Seq) int64 {
+	var maxOff int64
 	// iterate through byte sequences adding goto links to the link matrix
 	for id, seq := range seqs {
 		for i, choice := range seq.Choices {
-			// skip the first choice set if this isn't the zero tree and it is at 0 offset
-			if !zero && i == 0 && seq.MaxOffsets[0] == 0 {
-				continue
-			}
 			for _, byts := range choice {
 				curr := start
 				for _, byt := range byts {
@@ -142,12 +81,16 @@ func (start *node) addGotos(seqs []Seq, zero bool) {
 					out{seq.MaxOffsets[i], id, i, len(byts)},
 					curr.outMax,
 					curr.outMaxL)
+				if seq.MaxOffsets[i] > maxOff {
+					maxOff = seq.MaxOffsets[i]
+				}
 			}
 		}
 	}
+	return maxOff
 }
 
-func (start *node) addFails(zero bool) *node {
+func (start *node) addFails() {
 	// root and its children fail to root
 	start.fail = start
 	for _, byt := range start.keys {
@@ -188,18 +131,40 @@ func (start *node) addFails(zero bool) *node {
 		}
 		queue = queue[1:]
 	}
-	// for the zero tree, rewrite the fail links so they now point to the root of the main tree
-	if zero {
-		root := &node{keys: make([]byte, 0, 1)}
-		start.fail = root
-		for _, byt := range start.keys {
-			start.transit[byt].fail = root
-		}
-		return root
-	}
-	return start
 }
 
+// preconditions ensure that subsequent (>0) Choices in a Seq are only sent when previous Choices have already matched
+// previous matches are stored as offsets to prevent overlapping matches resulting in false positives
+type precons [][]int64
+
+func newPrecons(t []int) precons {
+	p := make([][]int64, len(t))
+	for i, v := range t {
+		p[i] = make([]int64, v)
+	}
+	return p
+}
+
+func clear(p precons) precons {
+	for i := range p {
+		for j := range p[i] {
+			p[i][j] = 0
+		}
+	}
+	return p
+}
+
+func preconsFn(s []Seq) func() interface{} {
+	t := make([]int, len(s))
+	for i := range s {
+		t[i] = len(s[i].Choices)
+	}
+	return func() interface{} {
+		return newPrecons(t)
+	}
+}
+
+/*
 type nodelm struct {
 	val     byte
 	transit transLM // the goto function
@@ -336,86 +301,9 @@ func (start *nodelm) addFails(zero bool) *nodelm {
 	}
 	return start
 }
+*/
 
-// preconditions ensure that subsequent (>0) Choices in a Seq are only sent when previous Choices have already matched
-// previous matches are stored as offsets to prevent overlapping matches resulting in false positives
-type precons [][]int64
-
-func newPrecons(t []int) precons {
-	p := make([][]int64, len(t))
-	for i, v := range t {
-		p[i] = make([]int64, v)
-	}
-	return p
-}
-
-func clear(p precons) precons {
-	for i := range p {
-		for j := range p[i] {
-			p[i][j] = 0
-		}
-	}
-	return p
-}
-
-func preconsFn(s []Seq) func() interface{} {
-	t := make([]int, len(s))
-	for i := range s {
-		t[i] = len(s[i].Choices)
-	}
-	return func() interface{} {
-		return newPrecons(t)
-	}
-}
-
-// Index returns a channel of results, these contain the indexes (a double index: index of the Seq and index of the Choice)
-// and offsets (in the input byte slice) of matching sequences.
-func (wac *fwac) Index(input io.ByteReader) chan Result {
-	output := make(chan Result)
-	go wac.match(input, output)
-	return output
-}
-
-func (wac *fwac) match(input io.ByteReader, results chan Result) {
-	var offset int64
-	var progressResult = Result{Index: [2]int{-1, -1}}
-	precons := wac.p.Get().(precons)
-	curr := wac.zero
-	for c, err := input.ReadByte(); err == nil; c, err = input.ReadByte() {
-		offset++
-		if trans := curr.transit[c]; trans != nil {
-			curr = trans
-		} else {
-			for curr != wac.root {
-				curr = curr.fail
-				if trans := curr.transit[c]; trans != nil {
-					curr = trans
-					break
-				}
-
-			}
-		}
-		if curr.output != nil && (curr.outMax == -1 || curr.outMax >= offset-int64(curr.outMaxL)) {
-			for _, o := range curr.output {
-				if o.max == -1 || o.max >= offset-int64(o.length) {
-					if o.subIndex == 0 || (precons[o.seqIndex][o.subIndex-1] != 0 && offset-int64(o.length) >= precons[o.seqIndex][o.subIndex-1]) {
-						if precons[o.seqIndex][o.subIndex] == 0 {
-							precons[o.seqIndex][o.subIndex] = offset
-						}
-						results <- Result{Index: [2]int{o.seqIndex, o.subIndex}, Offset: offset - int64(o.length), Length: o.length}
-					}
-				}
-			}
-		}
-		if offset&(^offset+1) == offset && offset >= 1024 { // send powers of 2 greater than 512
-			progressResult.Offset = offset
-			results <- progressResult
-		}
-	}
-	wac.p.Put(clear(precons))
-	close(results)
-}
-
+/*
 // Index returns a channel of results, these contain the indexes (a double index: index of the Seq and index of the Choice)
 // and offsets (in the input byte slice) of matching sequences.
 func (wac *fwaclm) Index(input io.ByteReader) chan Result {
@@ -463,3 +351,4 @@ func (wac *fwaclm) match(input io.ByteReader, results chan Result) {
 	wac.p.Put(precons)
 	close(results)
 }
+*/

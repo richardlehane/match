@@ -200,9 +200,9 @@ func hardTree() [][]byte {
 	str := ""
 	for i := 0; i < 2500; i++ {
 		// We add a 'q' to the end to make sure we never actually match
-		ret = append(ret, []byte(str+string('a'+(i%26))+"q"))
+		ret = append(ret, []byte{'a', byte(i % 26), 'q'})
 		if i%26 == 25 {
-			str = str + string('a'+len(str)%2)
+			str = str + string([]byte{'a', byte(len(str) % 2)})
 		}
 	}
 	return ret
