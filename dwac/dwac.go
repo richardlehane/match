@@ -116,7 +116,7 @@ func (dwac *Dwac) match(input io.ByteReader, results chan Result, resume chan []
 				}
 			}
 		}
-		if offset > int64(dwac.maxOff) && curr == dwac.root { // send powers of 2 greater than 512
+		if offset > int64(dwac.maxOff) && curr == dwac.root {
 			break
 		}
 	}
@@ -127,16 +127,17 @@ func (dwac *Dwac) match(input io.ByteReader, results chan Result, resume chan []
 		results <- resumeSignal
 		seqs := <-resume
 		if len(seqs) > 0 {
-			curr = &node{}
-			curr.addGotos(seqs)
-			curr.addFails()
+			root := &node{}
+			root.addGotos(seqs)
+			root.addFails()
+			curr = root
 			p = dwac.p.Get().(precons)
 			for c, err = input.ReadByte(); err == nil; c, err = input.ReadByte() {
 				offset++
 				if trans := curr.transit[c]; trans != nil {
 					curr = trans
 				} else {
-					for curr != dwac.root {
+					for curr != root {
 						curr = curr.fail
 						if trans := curr.transit[c]; trans != nil {
 							curr = trans

@@ -182,6 +182,33 @@ func TestChoices(t *testing.T) {
 		})
 }
 
+func TestDynamic(t *testing.T) {
+	test(t, []byte("The pot had a handle"),
+		[]Seq{seq("poto")},
+		nil,
+		[]Result{})
+	test(t, []byte("The pot had a handle The"),
+		[]Seq{Seq{[]int64{0}, []Choice{Choice{[]byte("The")}}}, Seq{[]int64{-1}, []Choice{Choice{[]byte("had")}}}},
+		[]Seq{Seq{[]int64{-1}, []Choice{Choice{[]byte("had")}}}},
+		[]Result{Result{[2]int{0, 0}, 0, 3}, Result{[2]int{0, 0}, 8, 3}})
+	test(t, []byte("The pot had a handle"),
+		[]Seq{seq("pot")},
+		nil,
+		[]Result{Result{[2]int{0, 0}, 4, 3}})
+	test(t, []byte("The pot had a handle"),
+		[]Seq{seq("pot ")},
+		nil,
+		[]Result{Result{[2]int{0, 0}, 4, 4}})
+	test(t, []byte("The pot had a handle"),
+		[]Seq{seq("ot h")},
+		nil,
+		[]Result{Result{[2]int{0, 0}, 5, 4}})
+	test(t, []byte("The pot had a handle"),
+		[]Seq{seq("andle")},
+		nil,
+		[]Result{Result{[2]int{0, 0}, 15, 5}})
+}
+
 // Benchmarks
 func BenchmarkNew(b *testing.B) {
 	for i := 0; i < b.N; i++ {
