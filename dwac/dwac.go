@@ -131,7 +131,7 @@ func (dwac *Dwac) match(input io.ByteReader, results chan Result, resume chan []
 			root.addGotos(seqs)
 			root.addFails()
 			curr = root
-			p = dwac.p.Get().(precons)
+			p = newPrecons(makeT(seqs))
 			for c, err = input.ReadByte(); err == nil; c, err = input.ReadByte() {
 				offset++
 				if trans := curr.transit[c]; trans != nil {
@@ -159,7 +159,6 @@ func (dwac *Dwac) match(input io.ByteReader, results chan Result, resume chan []
 				}
 			}
 		}
-		dwac.p.Put(clear(p))
 	}
 	close(results)
 }

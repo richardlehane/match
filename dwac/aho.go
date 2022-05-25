@@ -154,11 +154,16 @@ func clear(p precons) precons {
 	return p
 }
 
-func preconsFn(s []Seq) func() interface{} {
+func makeT(s []Seq) []int {
 	t := make([]int, len(s))
 	for i := range s {
 		t[i] = len(s[i].Choices)
 	}
+	return t
+}
+
+func preconsFn(s []Seq) func() interface{} {
+	t := makeT(s)
 	return func() interface{} {
 		return newPrecons(t)
 	}
