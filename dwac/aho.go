@@ -15,6 +15,8 @@
 // This file implements Aho Corasick searching for the bytematcher package
 package dwac
 
+import "github.com/richardlehane/match/fwac"
+
 // out function
 type out struct {
 	max      int64 // maximum offset at which can occur
@@ -59,7 +61,7 @@ type node struct {
 	outMaxL int
 }
 
-func (start *node) addGotos(seqs []Seq) int64 {
+func (start *node) addGotos(seqs []fwac.Seq) int64 {
 	var maxOff int64
 	// iterate through byte sequences adding goto links to the link matrix
 	for id, seq := range seqs {
@@ -154,7 +156,7 @@ func clear(p precons) precons {
 	return p
 }
 
-func makeT(s []Seq) []int {
+func makeT(s []fwac.Seq) []int {
 	t := make([]int, len(s))
 	for i := range s {
 		t[i] = len(s[i].Choices)
@@ -162,7 +164,7 @@ func makeT(s []Seq) []int {
 	return t
 }
 
-func preconsFn(s []Seq) func() interface{} {
+func preconsFn(s []fwac.Seq) func() interface{} {
 	t := makeT(s)
 	return func() interface{} {
 		return newPrecons(t)
