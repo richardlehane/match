@@ -65,15 +65,16 @@ func (s Seq) String() string {
 }
 
 type Dwac struct {
-	maxOff int64
-	root   *node
-	p      *sync.Pool
+	maxOff  int64
+	hasWild bool
+	root    *node
+	p       *sync.Pool
 }
 
 func New(seqs []Seq) *Dwac {
 	d := &Dwac{}
 	d.root = &node{}
-	d.maxOff = d.root.addGotos(seqs)
+	d.maxOff, d.hasWild = d.root.addGotos(seqs)
 	d.root.addFails()
 	d.p = &sync.Pool{New: preconsFn(seqs)}
 	return d
@@ -125,7 +126,7 @@ func (dwac *Dwac) match(input io.ByteReader, results chan Result, resume chan []
 	// return precons
 	dwac.p.Put(clear(p))
 	// if EOF not reached or other file read error, try the resume channel
-	if err == nil {
+	if err == nil && dwac.hasWild {
 		results <- Result{Index: [2]int{-1, -1}, Offset: offset}
 		seqs := <-resume
 		if len(seqs) > 0 {

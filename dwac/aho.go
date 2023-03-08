@@ -59,8 +59,9 @@ type node struct {
 	outMaxL int
 }
 
-func (start *node) addGotos(seqs []Seq) int64 {
+func (start *node) addGotos(seqs []Seq) (int64, bool) {
 	var maxOff int64
+	var hasWild bool
 	// iterate through byte sequences adding goto links to the link matrix
 	for id, seq := range seqs {
 		for i, choice := range seq.Choices {
@@ -84,10 +85,13 @@ func (start *node) addGotos(seqs []Seq) int64 {
 				if seq.MaxOffsets[i] > maxOff {
 					maxOff = seq.MaxOffsets[i]
 				}
+				if seq.MaxOffsets[i] == -1 {
+					hasWild = true
+				}
 			}
 		}
 	}
-	return maxOff
+	return maxOff, hasWild
 }
 
 func (start *node) addFails() {

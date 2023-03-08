@@ -263,6 +263,24 @@ func BenchmarkMatchingNoMatch(b *testing.B) {
 	}
 }
 
+func BenchmarkMatchingManyMatches(b *testing.B) {
+	b.StopTimer()
+	reader := bytes.NewBuffer(benchmarkValue(b.N))
+	dwac := New([]Seq{seq("abababababababd"),
+		seq("abababb"),
+		seq("abababababq")})
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		results, resume := dwac.Index(reader)
+		for res := range results {
+			if res.Index[0] == -1 {
+				resume <- nil
+				continue
+			}
+		}
+	}
+}
+
 func hardTree() []Seq {
 	ret := make([]Seq, 0, 2500)
 	str := ""
@@ -276,28 +294,10 @@ func hardTree() []Seq {
 	return ret
 }
 
-func BenchmarkMatchingManyMatches(b *testing.B) {
-	b.StopTimer()
-	reader := bytes.NewBuffer(benchmarkValue(b.N))
-	dwac := New(hardTree())
-	b.StartTimer()
-	for i := 0; i < b.N; i++ {
-		results, resume := dwac.Index(reader)
-		for res := range results {
-			if res.Index[0] == -1 {
-				resume <- nil
-				continue
-			}
-		}
-	}
-}
-
 func BenchmarkMatchingHardTree(b *testing.B) {
 	b.StopTimer()
 	reader := bytes.NewBuffer(benchmarkValue(b.N))
-	dwac := New([]Seq{seq("abababababababd"),
-		seq("abababb"),
-		seq("abababababq")})
+	dwac := New(hardTree())
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		results, resume := dwac.Index(reader)
