@@ -12,14 +12,57 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// DWAC is a multiple string matching algorithm with choices and max offsets.
+// It pauses matching when all strings with fixed offsets have been checked.
+// To resume matching (a limited set) of wildcard sequences, send on the resume channel.
 package dwac
 
 import (
+	"fmt"
 	"io"
+	"strings"
 	"sync"
-
-	"github.com/richardlehane/match/fwac"
 )
+
+// Result contains the index and offset of matches.
+type Result struct {
+	Index  [2]int // a double index: index of the Seq and index of the Choice
+	Offset int64
+	Length int
+}
+
+// Choice represents the different byte slices that can occur at each position of the Seq
+type Choice [][]byte
+
+// Seq is an ordered set of slices of Choices, with maximum offsets for each choice
+type Seq struct {
+	MaxOffsets []int64 // maximum offsets for each choice. Can be -1 for wildcard.
+	Choices    []Choice
+}
+
+func (s Seq) String() string {
+	str := "{Offsets:"
+	for n, v := range s.MaxOffsets {
+		if n > 0 {
+			str += ","
+		}
+		str += fmt.Sprintf(" %d", v)
+	}
+	str += "; Choices:"
+	for n, v := range s.Choices {
+		if n > 0 {
+			str += ","
+		}
+		str += " ["
+		strs := make([]string, len(v))
+		for i := range v {
+			strs[i] = string(v[i])
+		}
+		str += strings.Join(strs, " | ")
+		str += "]"
+	}
+	return str + "}"
+}
 
 type Dwac struct {
 	maxOff int64
@@ -27,7 +70,7 @@ type Dwac struct {
 	p      *sync.Pool
 }
 
-func New(seqs []fwac.Seq) *Dwac {
+func New(seqs []Seq) *Dwac {
 	d := &Dwac{}
 	d.root = &node{}
 	d.maxOff = d.root.addGotos(seqs)
@@ -38,16 +81,15 @@ func New(seqs []fwac.Seq) *Dwac {
 
 // Dwac returns a channel of results, which are double indexes (of the Seq and of the Choice),
 // and a resume channel, which is a slice of wild Seq indexes
-func (d *Dwac) Index(rdr io.ByteReader) (<-chan fwac.Result, chan<- []fwac.Seq) {
-	output, resume := make(chan fwac.Result), make(chan []fwac.Seq)
+func (d *Dwac) Index(rdr io.ByteReader) (<-chan Result, chan<- []Seq) {
+	output, resume := make(chan Result), make(chan []Seq)
 	go d.match(rdr, output, resume)
 	return output, resume
 }
 
-func (dwac *Dwac) match(input io.ByteReader, results chan fwac.Result, resume chan []fwac.Seq) {
+func (dwac *Dwac) match(input io.ByteReader, results chan Result, resume chan []Seq) {
 	var offset int64
-	var resumeSignal = fwac.Result{Index: [2]int{-1, -1}}
-	p := dwac.p.Get().(precons)
+	p := *(dwac.p.Get().(*precons))
 	curr := dwac.root
 	var c byte
 	var err error
@@ -71,7 +113,7 @@ func (dwac *Dwac) match(input io.ByteReader, results chan fwac.Result, resume ch
 						if p[o.seqIndex][o.subIndex] == 0 {
 							p[o.seqIndex][o.subIndex] = offset
 						}
-						results <- fwac.Result{Index: [2]int{o.seqIndex, o.subIndex}, Offset: offset - int64(o.length), Length: o.length}
+						results <- Result{Index: [2]int{o.seqIndex, o.subIndex}, Offset: offset - int64(o.length), Length: o.length}
 					}
 				}
 			}
@@ -84,14 +126,14 @@ func (dwac *Dwac) match(input io.ByteReader, results chan fwac.Result, resume ch
 	dwac.p.Put(clear(p))
 	// if EOF not reached or other file read error, try the resume channel
 	if err == nil {
-		results <- resumeSignal
+		results <- Result{Index: [2]int{-1, -1}, Offset: offset}
 		seqs := <-resume
 		if len(seqs) > 0 {
 			root := &node{}
 			root.addGotos(seqs)
 			root.addFails()
 			curr = root
-			p = newPrecons(makeT(seqs))
+			p = *(newPrecons(makeT(seqs)))
 			for c, err = input.ReadByte(); err == nil; c, err = input.ReadByte() {
 				offset++
 				if trans := curr.transit[c]; trans != nil {
@@ -112,7 +154,7 @@ func (dwac *Dwac) match(input io.ByteReader, results chan fwac.Result, resume ch
 								if p[o.seqIndex][o.subIndex] == 0 {
 									p[o.seqIndex][o.subIndex] = offset
 								}
-								results <- fwac.Result{Index: [2]int{o.seqIndex, o.subIndex}, Offset: offset - int64(o.length), Length: o.length}
+								results <- Result{Index: [2]int{o.seqIndex, o.subIndex}, Offset: offset - int64(o.length), Length: o.length}
 							}
 						}
 					}
