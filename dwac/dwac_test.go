@@ -33,6 +33,26 @@ func test(t *testing.T, a []byte, b []Seq, w []Seq, expect []Result) {
 	}
 }
 
+// This test checks whether a sequence on with a match at the maximum offset is sent before the resume.
+func TestBorder(t *testing.T) {
+	dwac := New([]Seq{{
+		[]int64{5},
+		[]Choice{{[]byte("hello")}},
+	}})
+	output, resume := dwac.Index(bytes.NewBuffer(append([]byte{0, 0, 0, 0, 0}, []byte("hello")...)))
+	results := make([]Result, 0)
+	for res := range output {
+		if res.Index[0] == -1 {
+			resume <- nil
+			break
+		}
+		results = append(results, res)
+	}
+	if len(results) != 1 {
+		t.Error("Index fail; expecting a result without resuming")
+	}
+}
+
 func seq(s string) Seq {
 	return Seq{[]int64{64}, []Choice{{[]byte(s)}}}
 }
