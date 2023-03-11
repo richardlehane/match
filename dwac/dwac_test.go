@@ -17,13 +17,13 @@ func equal(a []Result, b []Result) bool {
 	return true
 }
 
-func test(t *testing.T, a []byte, b []Seq, w []Seq, expect []Result) {
+func test(t *testing.T, a []byte, b []Seq, idx []SeqIndex, expect []Result) {
 	dwac := New(b)
 	output, resume := dwac.Index(bytes.NewBuffer(a))
 	results := make([]Result, 0)
 	for res := range output {
 		if res.Index[0] == -1 {
-			resume <- w
+			resume <- idx
 			continue
 		}
 		results = append(results, res)
@@ -209,8 +209,8 @@ func TestDynamic(t *testing.T) {
 		[]Result{})
 	test(t, []byte("The pot had a handle The"),
 		[]Seq{{[]int64{0}, []Choice{{[]byte("The")}}}, {[]int64{-1}, []Choice{{[]byte("had")}}}},
-		[]Seq{{[]int64{-1}, []Choice{{[]byte("had")}}}},
-		[]Result{{[2]int{0, 0}, 0, 3}, {[2]int{0, 0}, 8, 3}})
+		[]SeqIndex{{1, 0}},
+		[]Result{{[2]int{0, 0}, 0, 3}, {[2]int{1, 0}, 8, 3}})
 	test(t, []byte("The pot had a handle"),
 		[]Seq{seq("pot")},
 		nil,

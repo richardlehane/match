@@ -94,6 +94,31 @@ func (start *node) addGotos(seqs []Seq) (int64, bool) {
 	return maxOff, hasWild
 }
 
+func (start *node) addGotosIndexes(idxs []SeqIndex, seqs []Seq) {
+	for _, idx := range idxs {
+		for i, choice := range seqs[idx[0]].Choices[idx[1]:] {
+			for _, byts := range choice {
+				curr := start
+				for _, byt := range byts {
+					if curr.transit[byt] == nil {
+						curr.transit[byt] = &node{
+							val:  byt,
+							keys: make([]byte, 0, 1),
+						}
+						curr.keys = append(curr.keys, byt)
+					}
+					curr = curr.transit[byt]
+				}
+				curr.output, curr.outMax, curr.outMaxL = addOutput(
+					curr.output,
+					out{-1, idx[0], i + idx[1], len(byts)},
+					curr.outMax,
+					curr.outMaxL)
+			}
+		}
+	}
+}
+
 func (start *node) addFails() {
 	// root and its children fail to root
 	start.fail = start

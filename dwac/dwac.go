@@ -40,6 +40,9 @@ type Seq struct {
 	Choices    []Choice
 }
 
+// SeqIndex is an index into the slice of Seqs and their containing choices used to create the Dwac
+type SeqIndex [2]int
+
 func (s Seq) String() string {
 	str := "{Offsets:"
 	for n, v := range s.MaxOffsets {
@@ -69,6 +72,7 @@ type Dwac struct {
 	hasWild bool
 	root    *node
 	p       *sync.Pool
+	seqs    []Seq
 }
 
 func New(seqs []Seq) *Dwac {
@@ -76,19 +80,22 @@ func New(seqs []Seq) *Dwac {
 	d.root = &node{}
 	d.maxOff, d.hasWild = d.root.addGotos(seqs)
 	d.root.addFails()
+	if d.hasWild {
+		d.seqs = seqs
+	}
 	d.p = &sync.Pool{New: preconsFn(seqs)}
 	return d
 }
 
 // Dwac returns a channel of results, which are double indexes (of the Seq and of the Choice),
 // and a resume channel, which is a slice of wild Seq indexes
-func (d *Dwac) Index(rdr io.ByteReader) (<-chan Result, chan<- []Seq) {
-	output, resume := make(chan Result), make(chan []Seq)
+func (d *Dwac) Index(rdr io.ByteReader) (<-chan Result, chan<- []SeqIndex) {
+	output, resume := make(chan Result), make(chan []SeqIndex)
 	go d.match(rdr, output, resume)
 	return output, resume
 }
 
-func (dwac *Dwac) match(input io.ByteReader, results chan Result, resume chan []Seq) {
+func (dwac *Dwac) match(input io.ByteReader, results chan Result, resume chan []SeqIndex) {
 	var offset int64
 	p := *(dwac.p.Get().(*precons))
 	curr := dwac.root
@@ -123,18 +130,15 @@ func (dwac *Dwac) match(input io.ByteReader, results chan Result, resume chan []
 			break
 		}
 	}
-	// return precons
-	dwac.p.Put(clear(p))
 	// if EOF not reached or other file read error, try the resume channel
 	if err == nil && dwac.hasWild {
 		results <- Result{Index: [2]int{-1, -1}, Offset: offset}
-		seqs := <-resume
-		if len(seqs) > 0 {
+		seqIndexes := <-resume
+		if len(seqIndexes) > 0 {
 			root := &node{}
-			root.addGotos(seqs)
+			root.addGotosIndexes(seqIndexes, dwac.seqs)
 			root.addFails()
 			curr = root
-			p = *(newPrecons(makeT(seqs)))
 			for c, err = input.ReadByte(); err == nil; c, err = input.ReadByte() {
 				offset++
 				if trans := curr.transit[c]; trans != nil {
@@ -148,20 +152,20 @@ func (dwac *Dwac) match(input io.ByteReader, results chan Result, resume chan []
 						}
 					}
 				}
-				if curr.output != nil && (curr.outMax == -1 || curr.outMax >= offset-int64(curr.outMaxL)) {
+				if curr.output != nil {
 					for _, o := range curr.output {
-						if o.max == -1 || o.max >= offset-int64(o.length) {
-							if o.subIndex == 0 || (p[o.seqIndex][o.subIndex-1] != 0 && offset-int64(o.length) >= p[o.seqIndex][o.subIndex-1]) {
-								if p[o.seqIndex][o.subIndex] == 0 {
-									p[o.seqIndex][o.subIndex] = offset
-								}
-								results <- Result{Index: [2]int{o.seqIndex, o.subIndex}, Offset: offset - int64(o.length), Length: o.length}
+						if o.subIndex == 0 || (p[o.seqIndex][o.subIndex-1] != 0 && offset-int64(o.length) >= p[o.seqIndex][o.subIndex-1]) {
+							if p[o.seqIndex][o.subIndex] == 0 {
+								p[o.seqIndex][o.subIndex] = offset
 							}
+							results <- Result{Index: [2]int{o.seqIndex, o.subIndex}, Offset: offset - int64(o.length), Length: o.length}
 						}
 					}
 				}
 			}
 		}
 	}
+	// return precons
+	dwac.p.Put(clear(p))
 	close(results)
 }
